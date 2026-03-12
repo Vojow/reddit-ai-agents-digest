@@ -8,6 +8,8 @@ uv sync --dev
 
 Required environment variables for the full pipeline:
 - `REDDIT_USER_AGENT`
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT_EMAIL`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 
@@ -64,6 +66,8 @@ It supports:
 
 Repository secrets required for the full automated run:
 - `REDDIT_USER_AGENT`
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT_EMAIL`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 

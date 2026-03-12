@@ -6,12 +6,14 @@ from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 import json
+import google.auth
 import logging
 from typing import Any
 from typing import Protocol
 
 import gspread
-from google.oauth2.service_account import Credentials
+from google.auth.credentials import Credentials
+from google.oauth2.service_account import Credentials as ServiceAccountCredentials
 
 from reddit_digest.config import RuntimeConfig
 from reddit_digest.config import ScoringConfig
@@ -26,6 +28,7 @@ LOGGER = logging.getLogger(__name__)
 RAW_POSTS_TAB = "Raw_Posts"
 INSIGHTS_TAB = "Insights"
 DAILY_DIGEST_TAB = "Daily_Digest"
+GOOGLE_SHEETS_SCOPES = ("https://www.googleapis.com/auth/spreadsheets",)
 
 
 class WorksheetLike(Protocol):
@@ -62,11 +65,7 @@ class GoogleSheetsExporter:
 
     @classmethod
     def from_runtime(cls, runtime: RuntimeConfig) -> "GoogleSheetsExporter":
-        credentials_info = json.loads(runtime.google_service_account_json or "{}")
-        credentials = Credentials.from_service_account_info(
-            credentials_info,
-            scopes=["https://www.googleapis.com/auth/spreadsheets"],
-        )
+        credentials = load_google_sheets_credentials(runtime)
         client = gspread.authorize(credentials)
         workbook = client.open_by_key(runtime.google_sheets_spreadsheet_id)
         return cls(workbook)
@@ -112,6 +111,21 @@ class GoogleSheetsExporter:
         except Exception:
             LOGGER.info("Creating missing worksheet %s", title)
             return self._workbook.add_worksheet(title=title, rows=100, cols=cols)
+
+
+def load_google_sheets_credentials(runtime: RuntimeConfig) -> Credentials:
+    if runtime.google_service_account_json:
+        try:
+            credentials_info = json.loads(runtime.google_service_account_json)
+        except json.JSONDecodeError as exc:
+            raise ValueError("GOOGLE_SERVICE_ACCOUNT_JSON must contain valid JSON") from exc
+        return ServiceAccountCredentials.from_service_account_info(
+            credentials_info,
+            scopes=list(GOOGLE_SHEETS_SCOPES),
+        )
+
+    credentials, _ = google.auth.default(scopes=list(GOOGLE_SHEETS_SCOPES))
+    return credentials
 
 
 RAW_POST_HEADERS = [

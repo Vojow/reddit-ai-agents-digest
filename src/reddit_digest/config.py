@@ -51,6 +51,8 @@ class RuntimeConfig:
     reddit_user_agent: str | None
     openai_api_key: str | None
     openai_model: str
+    gcp_workload_identity_provider: str | None
+    gcp_service_account_email: str | None
     google_service_account_json: str | None
     google_sheets_spreadsheet_id: str | None
 
@@ -255,6 +257,8 @@ def load_runtime_config(*, require_reddit: bool = False, require_openai: bool = 
         reddit_user_agent=_env_optional("REDDIT_USER_AGENT"),
         openai_api_key=_env_optional("OPENAI_API_KEY"),
         openai_model=os.getenv("OPENAI_MODEL", "gpt-5-mini"),
+        gcp_workload_identity_provider=_env_optional("GCP_WORKLOAD_IDENTITY_PROVIDER"),
+        gcp_service_account_email=_env_optional("GCP_SERVICE_ACCOUNT_EMAIL"),
         google_service_account_json=_env_optional("GOOGLE_SERVICE_ACCOUNT_JSON"),
         google_sheets_spreadsheet_id=_env_optional("GOOGLE_SHEETS_SPREADSHEET_ID"),
     )
@@ -264,7 +268,6 @@ def load_runtime_config(*, require_reddit: bool = False, require_openai: bool = 
     if require_openai:
         _require_env("OPENAI_API_KEY")
     if require_sheets:
-        _require_env("GOOGLE_SERVICE_ACCOUNT_JSON")
         _require_env("GOOGLE_SHEETS_SPREADSHEET_ID")
 
     return runtime
