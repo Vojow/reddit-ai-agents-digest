@@ -62,12 +62,15 @@ src/reddit_digest/
 - The OpenAI step is advisory only. It can influence `Watch Next`, but it does
   not create same-day Reddit findings.
 - MVP ingestion uses public Reddit JSON endpoints and only requires a user agent.
+- GitHub Actions authenticates to Google Sheets via GitHub OIDC and Workload
+  Identity Federation; local runs can still use ADC or a local JSON fallback.
 - Google Sheets export is idempotent by `run_date`.
 - Re-running the same date overwrites file outputs and state rather than
   creating duplicates.
 
 ## Current gaps
 
-- GitHub Actions automation is not yet added.
 - There is no long-term trend analysis beyond the most recent prior run.
 - The OpenAI suggestion schema is prompt-based JSON rather than strict schema enforcement.
+- The GCP-side Workload Identity Federation setup still has to be provisioned
+  outside the repository.

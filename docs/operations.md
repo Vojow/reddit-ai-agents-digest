@@ -10,7 +10,7 @@ Required environment variables for the full pipeline:
 - `REDDIT_USER_AGENT`
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 
-Google authentication for Sheets can come from either:
+Google authentication for local Sheets export can come from either:
 - ambient Application Default Credentials, including Workload Identity Federation in CI
 - `GOOGLE_SERVICE_ACCOUNT_JSON` as a backward-compatible local fallback
 

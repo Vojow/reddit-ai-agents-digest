@@ -38,14 +38,27 @@ uv run pytest
 Copy `.env.example` to `.env` for local reference, then export the values in your
 shell or load them with your preferred environment tool before running commands.
 
-Key runtime environment variables:
+Core runtime environment variables:
+- `REDDIT_USER_AGENT`
+- `GOOGLE_SHEETS_SPREADSHEET_ID`
+
+Optional runtime environment variables:
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+
+Google Sheets authentication for local runs can come from:
+- Application Default Credentials
+- `GOOGLE_SERVICE_ACCOUNT_JSON` as a backward-compatible local fallback
+
+GitHub Actions repository variables for Sheets:
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT_EMAIL`
+- `GOOGLE_SHEETS_SPREADSHEET_ID`
+
+GitHub Actions secrets:
 - `REDDIT_USER_AGENT`
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
-- `GCP_WORKLOAD_IDENTITY_PROVIDER`
-- `GCP_SERVICE_ACCOUNT_EMAIL`
-- `GOOGLE_SERVICE_ACCOUNT_JSON`
-- `GOOGLE_SHEETS_SPREADSHEET_ID`
 
 Supported runtime overrides:
 - `INCLUDE_SECONDARY_SUBREDDITS`
