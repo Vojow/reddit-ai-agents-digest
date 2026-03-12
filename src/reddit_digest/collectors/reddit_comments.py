@@ -87,7 +87,10 @@ class PublicRedditCommentSource:
     def _flatten_comment_listing(self, listing: Any, *, post: Post) -> list[dict[str, Any]]:
         if not isinstance(listing, dict):
             return []
-        children = listing.get("data", {}).get("children", [])
+        listing_data = listing.get("data", {})
+        if not isinstance(listing_data, dict):
+            return []
+        children = listing_data.get("children", [])
         if not isinstance(children, list):
             return []
         flattened: list[dict[str, Any]] = []
@@ -121,7 +124,10 @@ class PublicRedditCommentSource:
         children = [current]
         replies = data.get("replies")
         if isinstance(replies, dict):
-            reply_children = replies.get("data", {}).get("children", [])
+            reply_data = replies.get("data", {})
+            if not isinstance(reply_data, dict):
+                return children
+            reply_children = reply_data.get("children", [])
             if not isinstance(reply_children, list):
                 return children
             for reply in reply_children:

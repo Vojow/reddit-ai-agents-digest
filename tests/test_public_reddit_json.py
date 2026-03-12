@@ -135,3 +135,10 @@ def test_public_comment_source_handles_malformed_listing(sample_posts_payload: l
     post = Post.from_raw(sample_posts_payload[0])
 
     assert source.fetch_comments(post, 10) == []
+
+
+def test_public_comment_source_handles_malformed_listing_data(sample_posts_payload: list[dict[str, object]]) -> None:
+    source = PublicRedditCommentSource(runtime(), session=FakeSession([{}, {"data": ["not-a-dict"]}]))
+    post = Post.from_raw(sample_posts_payload[0])
+
+    assert source.fetch_comments(post, 10) == []
