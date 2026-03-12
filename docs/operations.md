@@ -8,10 +8,11 @@ uv sync --dev
 
 Required environment variables for the full pipeline:
 - `REDDIT_USER_AGENT`
-- `GCP_WORKLOAD_IDENTITY_PROVIDER`
-- `GCP_SERVICE_ACCOUNT_EMAIL`
-- `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
+
+Google authentication for Sheets can come from either:
+- ambient Application Default Credentials, including Workload Identity Federation in CI
+- `GOOGLE_SERVICE_ACCOUNT_JSON` as a backward-compatible local fallback
 
 Optional environment variables:
 - `OPENAI_API_KEY`
@@ -64,16 +65,21 @@ It supports:
 - daily scheduled runs at `07:00 UTC`
 - manual dispatch from the GitHub Actions UI
 
-Repository secrets required for the full automated run:
-- `REDDIT_USER_AGENT`
+Repository variables required for the GitHub Actions Sheets path:
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`
 - `GCP_SERVICE_ACCOUNT_EMAIL`
-- `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
+
+Repository secrets required for the full automated run:
+- `REDDIT_USER_AGENT`
 
 Optional secrets:
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
+
+The workflow authenticates to Google with `google-github-actions/auth` using
+GitHub OIDC and short-lived credentials. It no longer requires
+`GOOGLE_SERVICE_ACCOUNT_JSON` in GitHub secrets.
 
 On workflow failure, the action uploads `reports/`, `data/processed/`, and
 `data/state/` as an artifact for debugging.
