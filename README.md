@@ -42,6 +42,8 @@ Key runtime environment variables:
 - `REDDIT_USER_AGENT`
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT_EMAIL`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 
@@ -59,6 +61,11 @@ findings.
 
 For MVP ingestion, Reddit app credentials are not required. The live collectors
 use Reddit's public JSON endpoints with a configurable `REDDIT_USER_AGENT`.
+
+Google Sheets export now supports ambient Google credentials from Application
+Default Credentials, including Workload Identity Federation in CI. The existing
+`GOOGLE_SERVICE_ACCOUNT_JSON` input remains a backward-compatible fallback until
+the workflow migration is completed.
 
 ## Repository layout
 

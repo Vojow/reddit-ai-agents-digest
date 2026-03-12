@@ -78,6 +78,25 @@ def test_missing_required_env_fails_fast(monkeypatch: pytest.MonkeyPatch) -> Non
         load_runtime_config(require_reddit=True)
 
 
+def test_require_sheets_only_needs_spreadsheet_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_JSON", raising=False)
+    monkeypatch.setenv("GOOGLE_SHEETS_SPREADSHEET_ID", "sheet-123")
+
+    runtime = load_runtime_config(require_sheets=True)
+
+    assert runtime.google_sheets_spreadsheet_id == "sheet-123"
+
+
+def test_runtime_config_reads_wif_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GCP_WORKLOAD_IDENTITY_PROVIDER", "projects/123/locations/global/workloadIdentityPools/pool/providers/provider")
+    monkeypatch.setenv("GCP_SERVICE_ACCOUNT_EMAIL", "digest-bot@example.iam.gserviceaccount.com")
+
+    runtime = load_runtime_config()
+
+    assert runtime.gcp_workload_identity_provider == "projects/123/locations/global/workloadIdentityPools/pool/providers/provider"
+    assert runtime.gcp_service_account_email == "digest-bot@example.iam.gserviceaccount.com"
+
+
 def test_invalid_scoring_config_fails(tmp_path: Path) -> None:
     scoring_path = tmp_path / "scoring.yaml"
     scoring_path.write_text("weights: []\ntags:\n  - ai-agents\n")

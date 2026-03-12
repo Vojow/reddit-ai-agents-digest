@@ -6,6 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from reddit_digest.config import RuntimeConfig
 from reddit_digest.config import load_scoring_config
 from reddit_digest.extractors.service import extract_insights
 from reddit_digest.models.comment import Comment
@@ -14,6 +17,7 @@ from reddit_digest.outputs.google_sheets import DAILY_DIGEST_TAB
 from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
 from reddit_digest.outputs.google_sheets import INSIGHTS_TAB
 from reddit_digest.outputs.google_sheets import RAW_POSTS_TAB
+from reddit_digest.outputs.google_sheets import load_google_sheets_credentials
 from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.ranking.novelty import apply_novelty
 
@@ -51,6 +55,16 @@ class FakeWorkbook:
         return worksheet
 
 
+class FakeClient:
+    def __init__(self, workbook: FakeWorkbook) -> None:
+        self._workbook = workbook
+        self.opened_key: str | None = None
+
+    def open_by_key(self, key: str) -> FakeWorkbook:
+        self.opened_key = key
+        return self._workbook
+
+
 def build_inputs(sample_posts_payload: list[dict[str, object]], sample_comments_payload: list[dict[str, object]], tmp_path: Path):
     posts = tuple(Post.from_raw(item) for item in sample_posts_payload)
     comments = tuple(Comment.from_raw(item) for item in sample_comments_payload)
@@ -68,6 +82,22 @@ def build_inputs(sample_posts_payload: list[dict[str, object]], sample_comments_
         run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
     )
     return posts, novelty.insights, scoring, markdown.content
+
+
+def build_runtime(**overrides: object) -> RuntimeConfig:
+    values: dict[str, object] = {
+        "reddit_client_id": None,
+        "reddit_client_secret": None,
+        "reddit_user_agent": "reddit-ai-agents-digest/0.1.0",
+        "openai_api_key": None,
+        "openai_model": "gpt-5-mini",
+        "gcp_workload_identity_provider": None,
+        "gcp_service_account_email": None,
+        "google_service_account_json": None,
+        "google_sheets_spreadsheet_id": "sheet-123",
+    }
+    values.update(overrides)
+    return RuntimeConfig(**values)
 
 
 def test_google_sheets_export_creates_expected_tabs(
@@ -131,3 +161,56 @@ def test_google_sheets_export_is_idempotent_for_same_run_date(
     assert len(raw_rows) == len(posts)
     assert len(insight_rows) == len(insights)
     assert len(digest_rows) == 1
+
+
+def test_load_google_sheets_credentials_prefers_service_account_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = build_runtime(google_service_account_json='{"type":"service_account","client_email":"bot@example.com"}')
+    captured: dict[str, object] = {}
+
+    def fake_from_service_account_info(info: dict[str, object], scopes: list[str]) -> str:
+        captured["info"] = info
+        captured["scopes"] = scopes
+        return "json-creds"
+
+    monkeypatch.setattr(
+        "reddit_digest.outputs.google_sheets.ServiceAccountCredentials.from_service_account_info",
+        fake_from_service_account_info,
+    )
+
+    credentials = load_google_sheets_credentials(runtime)
+
+    assert credentials == "json-creds"
+    assert captured["info"] == {"type": "service_account", "client_email": "bot@example.com"}
+    assert captured["scopes"] == ["https://www.googleapis.com/auth/spreadsheets"]
+
+
+def test_load_google_sheets_credentials_uses_application_default_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = build_runtime()
+
+    monkeypatch.setattr(
+        "reddit_digest.outputs.google_sheets.google.auth.default",
+        lambda *, scopes: ("adc-creds", "project-id"),
+    )
+
+    credentials = load_google_sheets_credentials(runtime)
+
+    assert credentials == "adc-creds"
+
+
+def test_google_sheets_exporter_from_runtime_uses_loaded_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    workbook = FakeWorkbook()
+    client = FakeClient(workbook)
+
+    monkeypatch.setattr(
+        "reddit_digest.outputs.google_sheets.load_google_sheets_credentials",
+        lambda runtime: "loaded-creds",
+    )
+    monkeypatch.setattr(
+        "reddit_digest.outputs.google_sheets.gspread.authorize",
+        lambda credentials: client if credentials == "loaded-creds" else None,
+    )
+
+    exporter = GoogleSheetsExporter.from_runtime(build_runtime())
+
+    assert isinstance(exporter, GoogleSheetsExporter)
+    assert client.opened_key == "sheet-123"
