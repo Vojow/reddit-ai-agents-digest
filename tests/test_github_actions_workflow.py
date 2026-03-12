@@ -23,6 +23,9 @@ def test_daily_workflow_runs_markdown_without_google_auth() -> None:
     steps = job["steps"]
 
     assert "permissions" not in job
+    assert env["REDDIT_USER_AGENT"] == "${{ vars.REDDIT_USER_AGENT }}"
+    assert env["OPENAI_MODEL"] == "${{ vars.OPENAI_MODEL }}"
+    assert env["OPENAI_API_KEY"] == "${{ secrets.OPENAI_API_KEY }}"
     assert "GOOGLE_SHEETS_SPREADSHEET_ID" not in env
     assert "GOOGLE_SERVICE_ACCOUNT_JSON" not in env
     assert all(step.get("uses") != "google-github-actions/auth@v3" for step in steps)
