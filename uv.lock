@@ -650,6 +650,7 @@ dependencies = [
     { name = "openai" },
     { name = "praw" },
     { name = "pyyaml" },
+    { name = "requests" },
 ]
 
 [package.dev-dependencies]
@@ -664,6 +665,7 @@ requires-dist = [
     { name = "openai", specifier = ">=1.0.0" },
     { name = "praw", specifier = ">=7.8.1" },
     { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "requests", specifier = ">=2.32.0" },
 ]
 
 [package.metadata.requires-dev]

@@ -5,9 +5,9 @@ artifacts. The runtime flow is:
 
 1. Load YAML config and environment-backed runtime settings.
 2. Collect Reddit posts into `data/raw/posts/YYYY-MM-DD.json` and
-   `data/processed/posts/YYYY-MM-DD.json`.
+   `data/processed/posts/YYYY-MM-DD.json` using Reddit public JSON listing endpoints.
 3. Collect Reddit comments into `data/raw/comments/YYYY-MM-DD.json` and
-   `data/processed/comments/YYYY-MM-DD.json`.
+   `data/processed/comments/YYYY-MM-DD.json` using Reddit public thread JSON endpoints.
 4. Extract normalized insights into `data/processed/insights/YYYY-MM-DD.json`.
 5. Compare those insights to the most recent prior run and mark them as `new`
    or `ongoing`.
@@ -61,6 +61,7 @@ src/reddit_digest/
 - Each stage writes its own output instead of relying on in-memory-only flow.
 - The OpenAI step is advisory only. It can influence `Watch Next`, but it does
   not create same-day Reddit findings.
+- MVP ingestion uses public Reddit JSON endpoints and only requires a user agent.
 - Google Sheets export is idempotent by `run_date`.
 - Re-running the same date overwrites file outputs and state rather than
   creating duplicates.

@@ -6,15 +6,12 @@ from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
-import json
 import logging
 
-import praw
-
 from reddit_digest.collectors.reddit_comments import CommentCollector
-from reddit_digest.collectors.reddit_comments import PrawRedditCommentSource
-from reddit_digest.collectors.reddit_posts import PrawRedditPostSource
+from reddit_digest.collectors.reddit_comments import PublicRedditCommentSource
 from reddit_digest.collectors.reddit_posts import PostCollector
+from reddit_digest.collectors.reddit_posts import PublicRedditPostSource
 from reddit_digest.config import load_config
 from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
 from reddit_digest.outputs.markdown import render_markdown_digest
@@ -42,14 +39,8 @@ class PipelineRunner:
         )
         run_at = datetime.fromisoformat(f"{run_date}T12:00:00+00:00").astimezone(UTC)
 
-        post_source = PrawRedditPostSource(config.runtime)
-        reddit = praw.Reddit(
-            client_id=config.runtime.reddit_client_id,
-            client_secret=config.runtime.reddit_client_secret,
-            user_agent=config.runtime.reddit_user_agent,
-        )
-        reddit.read_only = True
-        comment_source = PrawRedditCommentSource(lambda post_id: reddit.submission(id=post_id))
+        post_source = PublicRedditPostSource(config.runtime)
+        comment_source = PublicRedditCommentSource(config.runtime)
 
         post_result = retry_call(
             lambda: PostCollector(post_source, self.base_path / "data" / "raw", self.base_path / "data" / "processed").collect(

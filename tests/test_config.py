@@ -72,11 +72,9 @@ def test_invalid_yaml_fails_with_clear_message(tmp_path: Path) -> None:
 
 
 def test_missing_required_env_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("REDDIT_CLIENT_ID", raising=False)
-    monkeypatch.delenv("REDDIT_CLIENT_SECRET", raising=False)
     monkeypatch.delenv("REDDIT_USER_AGENT", raising=False)
 
-    with pytest.raises(ConfigError, match="REDDIT_CLIENT_ID"):
+    with pytest.raises(ConfigError, match="REDDIT_USER_AGENT"):
         load_runtime_config(require_reddit=True)
 
 
