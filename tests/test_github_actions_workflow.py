@@ -39,3 +39,16 @@ def test_daily_workflow_remains_manually_runnable() -> None:
     workflow = load_workflow()
 
     assert "workflow_dispatch" in workflow_triggers(workflow)
+
+
+def test_daily_workflow_remains_scheduled_and_uploads_failure_artifacts() -> None:
+    workflow = load_workflow()
+    triggers = workflow_triggers(workflow)
+    job = workflow["jobs"]["run-digest"]
+    upload_step = next(step for step in job["steps"] if step.get("uses") == "actions/upload-artifact@v4")
+
+    assert triggers["schedule"] == [{"cron": "0 7 * * *"}]
+    assert upload_step["if"] == "failure()"
+    assert "reports/" in upload_step["with"]["path"]
+    assert "data/processed/" in upload_step["with"]["path"]
+    assert "data/state/" in upload_step["with"]["path"]
