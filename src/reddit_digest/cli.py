@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
+from pathlib import Path
 from typing import Sequence
 
+from reddit_digest.pipeline import PipelineRunner
+from reddit_digest.utils.logging import configure_logging
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="reddit-digest")
@@ -13,18 +17,25 @@ def build_parser() -> argparse.ArgumentParser:
         action="version",
         version="reddit-ai-agents-digest 0.1.0",
     )
-    parser.add_argument(
-        "command",
-        nargs="?",
-        default="help",
-        help="Reserved for future pipeline commands.",
-    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    run_daily = subparsers.add_parser("run-daily", help="Run the full daily digest pipeline.")
+    run_daily.add_argument("--date", dest="run_date", default=date.today().isoformat(), help="Run date in YYYY-MM-DD format.")
+    run_daily.add_argument("--base-path", default=".", help="Repository base path.")
+    run_daily.add_argument("--skip-sheets", action="store_true", help="Skip Google Sheets export.")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
-    parser.parse_args(argv)
+    args = parser.parse_args(argv)
+
+    if args.command == "run-daily":
+        configure_logging()
+        runner = PipelineRunner(base_path=Path(args.base_path))
+        runner.run(run_date=args.run_date, skip_sheets=args.skip_sheets)
+        return 0
+
     parser.print_help()
     return 0
 

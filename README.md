@@ -23,6 +23,12 @@ Run the package entrypoint:
 uv run reddit-digest --help
 ```
 
+Run the full daily pipeline locally without Sheets export:
+
+```bash
+uv run reddit-digest run-daily --date 2026-03-12 --skip-sheets
+```
+
 Run tests:
 
 ```bash
