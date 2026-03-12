@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Daily Reddit intelligence pipeline for AI agents, AI-enhanced development, and testing."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  "PyYAML>=6.0.2",
+]
 
 [project.scripts]
 reddit-digest = "reddit_digest.cli:main"
