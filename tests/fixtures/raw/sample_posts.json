@@ -1,0 +1,26 @@
+[
+  {
+    "id": "post_001",
+    "subreddit": "Codex",
+    "title": "Codex agent keeps a local context file for every task",
+    "author": "builder_one",
+    "score": 124,
+    "num_comments": 18,
+    "created_utc": 1773315600,
+    "url": "https://reddit.com/r/Codex/comments/post_001",
+    "permalink": "/r/Codex/comments/post_001/codex_agent_keeps_a_local_context_file_for_every_task/",
+    "selftext": "I now snapshot the repo state before every change and it makes prompt recovery much easier."
+  },
+  {
+    "id": "post_002",
+    "subreddit": "ClaudeCode",
+    "title": "Claude Code workflow for test-first refactors",
+    "author": "tester_two",
+    "score": 97,
+    "num_comments": 11,
+    "created_utc": 1773319200,
+    "url": "https://reddit.com/r/ClaudeCode/comments/post_002",
+    "permalink": "/r/ClaudeCode/comments/post_002/claude_code_workflow_for_testfirst_refactors/",
+    "selftext": "My best results come from extracting fixtures before asking the model to touch production code."
+  }
+]

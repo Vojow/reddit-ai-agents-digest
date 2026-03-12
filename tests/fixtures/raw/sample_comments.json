@@ -1,0 +1,24 @@
+[
+  {
+    "id": "comment_001",
+    "post_id": "post_001",
+    "parent_id": "t3_post_001",
+    "subreddit": "Codex",
+    "author": "commenter_one",
+    "body": "The key is keeping the prompt deterministic and committing after every verified step.",
+    "score": 21,
+    "created_utc": 1773316500,
+    "permalink": "/r/Codex/comments/post_001/comment_001/"
+  },
+  {
+    "id": "comment_002",
+    "post_id": "post_002",
+    "parent_id": "t1_comment_001",
+    "subreddit": "ClaudeCode",
+    "author": "commenter_two",
+    "body": "We also gate merges on snapshot-based markdown output tests so formatting regressions are obvious.",
+    "score": 13,
+    "created_utc": 1773319800,
+    "permalink": "/r/ClaudeCode/comments/post_002/comment_002/"
+  }
+]
