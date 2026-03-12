@@ -1,0 +1,24 @@
+primary:
+  - Codex
+  - ClaudeCode
+  - Vibecoding
+
+secondary:
+  - AI_Agents
+  - LocalLLaMA
+  - ChatGPTCoding
+  - RAG
+  - automation
+
+mvp_enabled:
+  include_secondary: false
+
+fetch:
+  lookback_hours: 24
+  sort_modes:
+    - new
+    - top
+  min_post_score: 5
+  min_comments: 3
+  max_posts_per_subreddit: 25
+  max_comments_per_post: 50
