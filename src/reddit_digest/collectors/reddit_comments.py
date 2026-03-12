@@ -11,7 +11,10 @@ from typing import Any
 from typing import Protocol
 
 from praw.models import Submission
+import requests
 
+from reddit_digest.config import RuntimeConfig
+from reddit_digest.models.base import ModelError
 from reddit_digest.models.comment import Comment
 from reddit_digest.models.post import Post
 
@@ -60,6 +63,78 @@ class PrawRedditCommentSource:
         return serialized
 
 
+class PublicRedditCommentSource:
+    """Live Reddit comment source backed by public JSON endpoints."""
+
+    def __init__(self, runtime: RuntimeConfig, *, session: requests.Session | None = None) -> None:
+        self._session = session or requests.Session()
+        self._session.headers.update(
+            {
+                "User-Agent": runtime.reddit_user_agent or "reddit-ai-agents-digest/0.1.0",
+                "Accept": "application/json",
+            }
+        )
+
+    def fetch_comments(self, post: Post, limit: int) -> list[dict[str, Any]]:
+        url = f"https://www.reddit.com/comments/{post.id}.json"
+        response = self._session.get(url, params={"limit": limit, "raw_json": 1}, timeout=20)
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, list) or len(payload) < 2:
+            return []
+        return self._flatten_comment_listing(payload[1], post=post)[:limit]
+
+    def _flatten_comment_listing(self, listing: Any, *, post: Post) -> list[dict[str, Any]]:
+        if not isinstance(listing, dict):
+            return []
+        listing_data = listing.get("data", {})
+        if not isinstance(listing_data, dict):
+            return []
+        children = listing_data.get("children", [])
+        if not isinstance(children, list):
+            return []
+        flattened: list[dict[str, Any]] = []
+        for child in children:
+            if not isinstance(child, dict):
+                continue
+            flattened.extend(self._flatten_comment_node(child, post=post))
+        return flattened
+
+    def _flatten_comment_node(self, node: Any, *, post: Post) -> list[dict[str, Any]]:
+        if not isinstance(node, dict):
+            return []
+        if node.get("kind") != "t1":
+            return []
+        data = node.get("data", {})
+        if not isinstance(data, dict):
+            return []
+
+        current = {
+            "id": data.get("id"),
+            "post_id": post.id,
+            "parent_id": data.get("parent_id"),
+            "subreddit": post.subreddit,
+            "author": data.get("author"),
+            "body": data.get("body"),
+            "score": data.get("score", 0),
+            "created_utc": int(data.get("created_utc", 0)),
+            "permalink": data.get("permalink"),
+        }
+
+        children = [current]
+        replies = data.get("replies")
+        if isinstance(replies, dict):
+            reply_data = replies.get("data", {})
+            if not isinstance(reply_data, dict):
+                return children
+            reply_children = reply_data.get("children", [])
+            if not isinstance(reply_children, list):
+                return children
+            for reply in reply_children:
+                children.extend(self._flatten_comment_node(reply, post=post))
+        return children
+
+
 class CommentCollector:
     """Collect, normalize, and persist comments for shortlisted posts."""
 
@@ -105,7 +180,10 @@ class CommentCollector:
             body = item.get("body")
             if not isinstance(body, str) or not body.strip() or body.strip() in {"[deleted]", "[removed]"}:
                 continue
-            normalized.append(Comment.from_raw(item))
+            try:
+                normalized.append(Comment.from_raw(item))
+            except ModelError:
+                continue
             if len(normalized) >= max_comments_per_post:
                 break
         return normalized

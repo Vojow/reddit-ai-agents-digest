@@ -39,8 +39,6 @@ Copy `.env.example` to `.env` for local reference, then export the values in you
 shell or load them with your preferred environment tool before running commands.
 
 Key runtime environment variables:
-- `REDDIT_CLIENT_ID`
-- `REDDIT_CLIENT_SECRET`
 - `REDDIT_USER_AGENT`
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
@@ -58,6 +56,9 @@ Supported runtime overrides:
 If `OPENAI_API_KEY` is set, the pipeline will also generate additive `Watch Next`
 content suggestions and candidate new sources based only on the day’s collected
 findings.
+
+For MVP ingestion, Reddit app credentials are not required. The live collectors
+use Reddit's public JSON endpoints with a configurable `REDDIT_USER_AGENT`.
 
 ## Repository layout
 

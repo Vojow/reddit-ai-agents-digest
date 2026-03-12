@@ -12,9 +12,11 @@ from typing import Any
 from typing import Protocol
 
 import praw
+import requests
 
 from reddit_digest.config import RuntimeConfig
 from reddit_digest.config import SubredditConfig
+from reddit_digest.models.base import ModelError
 from reddit_digest.models.post import Post
 
 
@@ -71,6 +73,63 @@ class PrawRedditPostSource:
         }
 
 
+class PublicRedditPostSource:
+    """Live Reddit source backed by public JSON endpoints."""
+
+    def __init__(self, runtime: RuntimeConfig, *, session: requests.Session | None = None) -> None:
+        self._session = session or requests.Session()
+        self._session.headers.update(
+            {
+                "User-Agent": runtime.reddit_user_agent or "reddit-ai-agents-digest/0.1.0",
+                "Accept": "application/json",
+            }
+        )
+
+    def fetch_posts(self, subreddit: str, sort_mode: str, limit: int) -> list[dict[str, Any]]:
+        url = f"https://www.reddit.com/r/{subreddit}/{sort_mode}.json"
+        params: dict[str, Any] = {"limit": limit, "raw_json": 1}
+        if sort_mode == "top":
+            params["t"] = "day"
+        response = self._session.get(url, params=params, timeout=20)
+        response.raise_for_status()
+        payload = response.json()
+        return self._parse_listing(payload)
+
+    def _parse_listing(self, payload: Any) -> list[dict[str, Any]]:
+        if not isinstance(payload, dict):
+            return []
+        data = payload.get("data", {})
+        if not isinstance(data, dict):
+            return []
+        children = data.get("children", [])
+        if not isinstance(children, list):
+            return []
+        items: list[dict[str, Any]] = []
+        for child in children:
+            if not isinstance(child, dict):
+                continue
+            if child.get("kind") != "t3":
+                continue
+            raw = child.get("data", {})
+            if not isinstance(raw, dict):
+                continue
+            items.append(
+                {
+                    "id": raw.get("id"),
+                    "subreddit": raw.get("subreddit"),
+                    "title": raw.get("title"),
+                    "author": raw.get("author"),
+                    "score": raw.get("score", 0),
+                    "num_comments": raw.get("num_comments", 0),
+                    "created_utc": int(raw.get("created_utc", 0)),
+                    "url": raw.get("url") or f"https://www.reddit.com{raw.get('permalink', '')}",
+                    "permalink": raw.get("permalink"),
+                    "selftext": raw.get("selftext"),
+                }
+            )
+        return items
+
+
 class PostCollector:
     """Collect, normalize, and persist subreddit posts."""
 
@@ -110,7 +169,10 @@ class PostCollector:
                 )
                 raw_by_mode[sort_mode] = raw_items
                 for item in raw_items:
-                    post = Post.from_raw(item)
+                    try:
+                        post = Post.from_raw(item)
+                    except ModelError:
+                        continue
                     if post.created_utc < minimum_created_utc:
                         continue
                     if post.score < config.fetch.min_post_score:

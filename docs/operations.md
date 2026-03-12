@@ -7,8 +7,6 @@ uv sync --dev
 ```
 
 Required environment variables for the full pipeline:
-- `REDDIT_CLIENT_ID`
-- `REDDIT_CLIENT_SECRET`
 - `REDDIT_USER_AGENT`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
@@ -65,8 +63,6 @@ It supports:
 - manual dispatch from the GitHub Actions UI
 
 Repository secrets required for the full automated run:
-- `REDDIT_CLIENT_ID`
-- `REDDIT_CLIENT_SECRET`
 - `REDDIT_USER_AGENT`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `GOOGLE_SHEETS_SPREADSHEET_ID`

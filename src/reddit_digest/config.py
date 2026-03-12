@@ -260,8 +260,6 @@ def load_runtime_config(*, require_reddit: bool = False, require_openai: bool = 
     )
 
     if require_reddit:
-        _require_env("REDDIT_CLIENT_ID")
-        _require_env("REDDIT_CLIENT_SECRET")
         _require_env("REDDIT_USER_AGENT")
     if require_openai:
         _require_env("OPENAI_API_KEY")
