@@ -99,7 +99,7 @@ class PostCollector:
 
     def _fetch_and_filter(self, config: SubredditConfig, *, minimum_created_utc: int) -> dict[str, Any]:
         by_subreddit: dict[str, Any] = {}
-        for subreddit in config.primary:
+        for subreddit in config.enabled_subreddits:
             deduped: dict[str, dict[str, Any]] = {}
             raw_by_mode: dict[str, list[dict[str, Any]]] = {}
             for sort_mode in config.fetch.sort_modes:
