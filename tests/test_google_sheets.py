@@ -197,6 +197,13 @@ def test_load_google_sheets_credentials_uses_application_default_credentials(mon
     assert credentials == "adc-creds"
 
 
+def test_load_google_sheets_credentials_rejects_invalid_json() -> None:
+    runtime = build_runtime(google_service_account_json="{not-json}")
+
+    with pytest.raises(ValueError, match="GOOGLE_SERVICE_ACCOUNT_JSON"):
+        load_google_sheets_credentials(runtime)
+
+
 def test_google_sheets_exporter_from_runtime_uses_loaded_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     workbook = FakeWorkbook()
     client = FakeClient(workbook)
@@ -214,3 +221,29 @@ def test_google_sheets_exporter_from_runtime_uses_loaded_credentials(monkeypatch
 
     assert isinstance(exporter, GoogleSheetsExporter)
     assert client.opened_key == "sheet-123"
+
+
+def test_google_sheets_exporter_from_runtime_supports_wif_backed_adc(monkeypatch: pytest.MonkeyPatch) -> None:
+    workbook = FakeWorkbook()
+    client = FakeClient(workbook)
+    captured: dict[str, object] = {}
+    runtime = build_runtime(
+        gcp_workload_identity_provider="projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+        gcp_service_account_email="digest-bot@example.iam.gserviceaccount.com",
+    )
+
+    def fake_default(*, scopes: list[str]) -> tuple[str, str]:
+        captured["scopes"] = scopes
+        return "adc-creds", "project-id"
+
+    monkeypatch.setattr("reddit_digest.outputs.google_sheets.google.auth.default", fake_default)
+    monkeypatch.setattr(
+        "reddit_digest.outputs.google_sheets.gspread.authorize",
+        lambda credentials: client if credentials == "adc-creds" else None,
+    )
+
+    exporter = GoogleSheetsExporter.from_runtime(runtime)
+
+    assert isinstance(exporter, GoogleSheetsExporter)
+    assert client.opened_key == "sheet-123"
+    assert captured["scopes"] == ["https://www.googleapis.com/auth/spreadsheets"]

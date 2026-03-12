@@ -115,6 +115,7 @@ class GoogleSheetsExporter:
 
 def load_google_sheets_credentials(runtime: RuntimeConfig) -> Credentials:
     if runtime.google_service_account_json:
+        LOGGER.info("Using GOOGLE_SERVICE_ACCOUNT_JSON fallback for Google Sheets auth")
         try:
             credentials_info = json.loads(runtime.google_service_account_json)
         except json.JSONDecodeError as exc:
@@ -124,6 +125,7 @@ def load_google_sheets_credentials(runtime: RuntimeConfig) -> Credentials:
             scopes=list(GOOGLE_SHEETS_SCOPES),
         )
 
+    LOGGER.info("Using Application Default Credentials for Google Sheets auth")
     credentials, _ = google.auth.default(scopes=list(GOOGLE_SHEETS_SCOPES))
     return credentials
 
