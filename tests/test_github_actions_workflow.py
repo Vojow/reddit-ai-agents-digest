@@ -16,24 +16,19 @@ def workflow_triggers(workflow: dict[str, object]) -> dict[str, object]:
     return triggers
 
 
-def test_daily_workflow_uses_oidc_for_google_auth() -> None:
+def test_daily_workflow_runs_markdown_without_google_auth() -> None:
     workflow = load_workflow()
     job = workflow["jobs"]["run-digest"]
-    permissions = job["permissions"]
     env = job["env"]
     steps = job["steps"]
 
-    assert permissions == {"contents": "read", "id-token": "write"}
-    assert env["GOOGLE_SHEETS_SPREADSHEET_ID"] == "${{ vars.GOOGLE_SHEETS_SPREADSHEET_ID }}"
+    assert "permissions" not in job
+    assert "GOOGLE_SHEETS_SPREADSHEET_ID" not in env
     assert "GOOGLE_SERVICE_ACCOUNT_JSON" not in env
+    assert all(step.get("uses") != "google-github-actions/auth@v3" for step in steps)
 
-    auth_step = next(step for step in steps if step.get("uses") == "google-github-actions/auth@v3")
-    assert auth_step["with"] == {
-        "workload_identity_provider": "${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}",
-        "service_account": "${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}",
-        "create_credentials_file": True,
-        "export_environment_variables": True,
-    }
+    run_step = next(step for step in steps if step.get("name") == "Run daily digest pipeline")
+    assert run_step["run"] == "uv run reddit-digest run-daily --skip-sheets"
 
 
 def test_daily_workflow_remains_manually_runnable() -> None:

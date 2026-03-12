@@ -18,9 +18,8 @@ def test_google_auth_docs_match_current_workflow_model() -> None:
     operations = (Path.cwd() / "docs" / "operations.md").read_text()
     architecture = (Path.cwd() / "docs" / "architecture.md").read_text()
 
-    assert "GitHub Actions repository variables for Sheets" in readme
-    assert "GCP_WORKLOAD_IDENTITY_PROVIDER" in readme
-    assert "GOOGLE_SERVICE_ACCOUNT_JSON" in readme
-    assert "Repository variables required for the GitHub Actions Sheets path" in operations
-    assert "GOOGLE_SERVICE_ACCOUNT_JSON` in GitHub secrets" in operations
+    assert "--skip-sheets" in readme
+    assert "Google Sheets export in CI" in readme
+    assert "Google auth is not required in CI" in operations
+    assert "docs/gcp-wif-setup.md" in operations
     assert "GitHub Actions automation is not yet added." not in architecture
