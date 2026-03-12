@@ -1,0 +1,15 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+data/raw/*
+data/processed/*
+data/state/*
+reports/daily/*
+reports/latest.md
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/state/.gitkeep
+!reports/daily/.gitkeep

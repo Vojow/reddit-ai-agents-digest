@@ -1,0 +1,18 @@
+weights:
+  relevance: 0.30
+  comment_depth: 0.20
+  actionability: 0.20
+  novelty: 0.15
+  engagement: 0.10
+  recency: 0.05
+
+tags:
+  - ai-agents
+  - coding-agents
+  - ai-dev-workflow
+  - ai-testing
+  - evals
+  - reliability
+  - prompting
+  - ci-cd
+  - tooling
