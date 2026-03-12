@@ -15,6 +15,7 @@ Primary outputs:
 - Daily Markdown digest in `reports/daily/YYYY-MM-DD.md`
 - Refreshed `reports/latest.md`
 - Structured export to Google Sheets
+- Optional OpenAI-generated "watch next" suggestions derived from the day's findings
 
 ## Tech expectations
 - Python 3.12
