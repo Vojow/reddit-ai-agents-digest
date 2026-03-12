@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from typing import Sequence
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -21,9 +22,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
-    parser.parse_args()
+    parser.parse_args(argv)
     parser.print_help()
     return 0
 
