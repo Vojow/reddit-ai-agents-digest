@@ -6,8 +6,10 @@
 uv sync --dev
 ```
 
-Required environment variables for the full pipeline:
+Required environment variables for local markdown-only runs:
 - `REDDIT_USER_AGENT`
+
+Additional environment variables for the full local pipeline:
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 
 Google authentication for local Sheets export can come from either:
@@ -31,7 +33,7 @@ Optional environment variables:
 
 ## Run locally
 
-Run the full pipeline without Sheets export:
+Run the markdown-only pipeline:
 
 ```bash
 make run-markdown
@@ -55,6 +57,19 @@ uv run reddit-digest run-daily --date 2026-03-12
 - Latest digest: `reports/latest.md`
 - Run state: `data/state/YYYY-MM-DD.json`
 
+## Ranking behavior
+
+- Only enabled subreddits contribute to thread ranking.
+- `INCLUDE_SECONDARY_SUBREDDITS=false` means secondary subreddits do not appear
+  in global or per-subreddit rankings.
+- `## Notable Threads` is the diversified global top 5 across enabled
+  subreddits.
+- `## Top Threads By Subreddit` renders the top 3 ranked threads for each
+  enabled subreddit.
+- The global top 5 keeps the current deterministic score formula and requires
+  at least 2 distinct subreddits when eligible candidates exist across more
+  than one enabled subreddit.
+
 ## Failure handling
 
 - Networked stages retry up to three times.
@@ -72,17 +87,19 @@ It supports:
 - markdown generation without Google Sheets export
 - execution on a `self-hosted` runner only
 
-Repository secrets required for the full automated run:
+Repository variables required for the current workflow:
 - `REDDIT_USER_AGENT`
 
-Optional secrets:
-- `OPENAI_API_KEY`
+Optional repository variables:
 - `OPENAI_MODEL`
 
 GitHub-hosted runners are not supported for live Reddit collection because
 Reddit blocks the public JSON requests from those runner networks. The workflow
 therefore runs only on a `self-hosted` runner and uses the same canonical local
 command as manual execution: `make run-markdown`.
+
+Optional secrets:
+- `OPENAI_API_KEY`
 
 The workflow currently runs markdown-only, so Google auth is not required in
 CI. Google auth is not required in CI for the current markdown-only workflow.

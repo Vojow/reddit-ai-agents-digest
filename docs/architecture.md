@@ -11,13 +11,15 @@ artifacts. The runtime flow is:
 4. Extract normalized insights into `data/processed/insights/YYYY-MM-DD.json`.
 5. Compare those insights to the most recent prior run and mark them as `new`
    or `ongoing`.
-6. Optionally generate OpenAI-backed `Watch Next` suggestions into
+6. Rank collected threads across enabled subreddits, producing a diversified
+   global top 5 and per-subreddit top 3 lists.
+7. Optionally generate OpenAI-backed `Watch Next` suggestions into
    `data/processed/suggestions/YYYY-MM-DD.json`.
-7. Render the Markdown digest to `reports/daily/YYYY-MM-DD.md` and refresh
+8. Render the Markdown digest to `reports/daily/YYYY-MM-DD.md` and refresh
    `reports/latest.md`.
-8. Optionally export raw posts, insights, and daily digest summaries to Google
+9. Optionally export raw posts, insights, and daily digest summaries to Google
    Sheets.
-9. Persist run metadata into `data/state/YYYY-MM-DD.json` and `data/state/latest.json`.
+10. Persist run metadata into `data/state/YYYY-MM-DD.json` and `data/state/latest.json`.
 
 ## Code layout
 
@@ -48,7 +50,8 @@ src/reddit_digest/
 │   └── markdown.py
 ├── ranking/
 │   ├── impact.py
-│   └── novelty.py
+│   ├── novelty.py
+│   └── threads.py
 └── utils/
     ├── logging.py
     ├── retries.py
@@ -62,8 +65,14 @@ src/reddit_digest/
 - The OpenAI step is advisory only. It can influence `Watch Next`, but it does
   not create same-day Reddit findings.
 - MVP ingestion uses public Reddit JSON endpoints and only requires a user agent.
+- Thread ranking uses only enabled subreddits and keeps the existing score
+  formula for both global and per-subreddit ordering.
+- The global `Notable Threads` list applies a minimal diversity rule so it
+  includes at least 2 enabled subreddits when eligible candidates exist.
 - GitHub Actions authenticates to Google Sheets via GitHub OIDC and Workload
   Identity Federation; local runs can still use ADC or a local JSON fallback.
+- The current GitHub Actions workflow is markdown-only on a `self-hosted`
+  runner; GitHub-hosted runners are unsupported for live Reddit collection.
 - Google Sheets export is idempotent by `run_date`.
 - Re-running the same date overwrites file outputs and state rather than
   creating duplicates.
