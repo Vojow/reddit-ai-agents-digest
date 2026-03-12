@@ -132,6 +132,40 @@ def test_markdown_digest_renders_global_top_five_and_per_subreddit_top_three(tmp
     assert claude_section.count("- [") == 3
 
 
+def test_markdown_digest_is_deterministic_for_same_inputs(tmp_path: Path) -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    posts = (
+        _build_post(post_id="codex-1", subreddit="Codex", score=99, num_comments=25),
+        _build_post(post_id="claude-1", subreddit="ClaudeCode", score=96, num_comments=23),
+        _build_post(post_id="codex-2", subreddit="Codex", score=92, num_comments=19),
+    )
+    insights = tuple(_build_insight(post) for post in posts)
+    thread_selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex", "ClaudeCode"),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+        lookback_hours=24,
+    )
+
+    first = render_markdown_digest(
+        run_date="2026-03-12",
+        insights=insights,
+        scoring=scoring,
+        thread_selection=thread_selection,
+        reports_root=tmp_path / "reports-one",
+    )
+    second = render_markdown_digest(
+        run_date="2026-03-12",
+        insights=insights,
+        scoring=scoring,
+        thread_selection=thread_selection,
+        reports_root=tmp_path / "reports-two",
+    )
+
+    assert first.content == second.content
+
+
 def _build_post(*, post_id: str, subreddit: str, score: int, num_comments: int) -> Post:
     return Post.from_raw(
         {

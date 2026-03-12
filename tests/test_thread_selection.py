@@ -4,6 +4,8 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 
+from reddit_digest.config import FetchConfig
+from reddit_digest.config import SubredditConfig
 from reddit_digest.config import load_scoring_config
 from reddit_digest.models.post import Post
 from reddit_digest.ranking.threads import select_threads
@@ -34,6 +36,22 @@ def build_post(
             "permalink": f"/r/{subreddit}/comments/{post_id}",
             "selftext": "workflow guide eval automation test prompt",
         }
+    )
+
+
+def build_subreddit_config(*, include_secondary: bool) -> SubredditConfig:
+    return SubredditConfig(
+        primary=("Codex",),
+        secondary=("ClaudeCode",),
+        include_secondary=include_secondary,
+        fetch=FetchConfig(
+            lookback_hours=24,
+            sort_modes=("new", "top"),
+            min_post_score=0,
+            min_comments=0,
+            max_posts_per_subreddit=10,
+            max_comments_per_post=10,
+        ),
     )
 
 
@@ -146,3 +164,49 @@ def test_select_threads_limits_per_subreddit_rankings() -> None:
 
     codex_group = next(group for group in selection.by_subreddit if group.subreddit == "Codex")
     assert len(codex_group.posts) == 3
+
+
+def test_select_threads_respects_secondary_toggle_from_config() -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    posts = (
+        build_post(post_id="a1", subreddit="Codex", title="Codex 1", score=95, num_comments=28),
+        build_post(post_id="b1", subreddit="ClaudeCode", title="ClaudeCode 1", score=90, num_comments=24),
+    )
+
+    without_secondary = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=build_subreddit_config(include_secondary=False).enabled_subreddits,
+        run_at=RUN_AT,
+        lookback_hours=24,
+    )
+    with_secondary = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=build_subreddit_config(include_secondary=True).enabled_subreddits,
+        run_at=RUN_AT,
+        lookback_hours=24,
+    )
+
+    assert tuple(item.post.subreddit for item in without_secondary.ranked_posts) == ("Codex",)
+    assert tuple(item.post.subreddit for item in with_secondary.ranked_posts) == ("Codex", "ClaudeCode")
+
+
+def test_select_threads_handles_fewer_than_five_total_candidates() -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    posts = (
+        build_post(post_id="a1", subreddit="Codex", title="Codex 1", score=95, num_comments=28),
+        build_post(post_id="a2", subreddit="Codex", title="Codex 2", score=90, num_comments=24),
+        build_post(post_id="b1", subreddit="ClaudeCode", title="ClaudeCode 1", score=85, num_comments=20),
+    )
+
+    selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex", "ClaudeCode"),
+        run_at=RUN_AT,
+        lookback_hours=24,
+    )
+
+    assert len(selection.notable_threads) == 3
+    assert {item.post.subreddit for item in selection.notable_threads} == {"Codex", "ClaudeCode"}
