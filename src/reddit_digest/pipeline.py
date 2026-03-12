@@ -19,6 +19,7 @@ from reddit_digest.extractors.service import extract_insights
 from reddit_digest.extractors.openai_suggestions import build_openai_client
 from reddit_digest.extractors.openai_suggestions import generate_suggestions
 from reddit_digest.ranking.novelty import apply_novelty
+from reddit_digest.ranking.threads import select_threads
 from reddit_digest.utils.retries import retry_call
 from reddit_digest.utils.state import RunState
 from reddit_digest.utils.state import write_run_state
@@ -85,15 +86,20 @@ class PipelineRunner:
                 logger=LOGGER,
             )
             suggestions = tuple(f"{item.title}: {item.rationale}" for item in suggestion_result.suggestions)
+        thread_selection = select_threads(
+            post_result.posts,
+            scoring=config.scoring,
+            enabled_subreddits=config.subreddits.enabled_subreddits,
+            run_at=run_at,
+            lookback_hours=config.subreddits.fetch.lookback_hours,
+        )
         markdown = render_markdown_digest(
             run_date=run_date,
-            posts=post_result.posts,
             insights=novelty.insights,
             scoring=config.scoring,
+            thread_selection=thread_selection,
             reports_root=self.base_path / "reports",
-            lookback_hours=config.subreddits.fetch.lookback_hours,
             watch_next=suggestions,
-            run_at=run_at,
         )
 
         sheets_exported = False

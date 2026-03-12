@@ -10,6 +10,7 @@ from reddit_digest.models.comment import Comment
 from reddit_digest.models.post import Post
 from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.ranking.novelty import apply_novelty
+from reddit_digest.ranking.threads import select_threads
 
 
 def test_render_markdown_digest_writes_daily_and_latest(
@@ -22,15 +23,20 @@ def test_render_markdown_digest_writes_daily_and_latest(
     extracted = extract_insights(posts, comments, processed_root=tmp_path / "processed", run_date="2026-03-12")
     novelty = apply_novelty(tmp_path / "processed", run_date="2026-03-12", insights=extracted.insights)
     scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    thread_selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex", "ClaudeCode", "Vibecoding"),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+        lookback_hours=24,
+    )
 
     result = render_markdown_digest(
         run_date="2026-03-12",
-        posts=posts,
         insights=novelty.insights,
         scoring=scoring,
+        thread_selection=thread_selection,
         reports_root=tmp_path / "reports",
-        lookback_hours=24,
-        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
     )
 
     assert result.daily_path.exists()
@@ -52,16 +58,21 @@ def test_markdown_digest_section_order(
     extracted = extract_insights(posts, comments, processed_root=tmp_path / "processed", run_date="2026-03-12")
     novelty = apply_novelty(tmp_path / "processed", run_date="2026-03-12", insights=extracted.insights)
     scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    thread_selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex", "ClaudeCode", "Vibecoding"),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+        lookback_hours=24,
+    )
 
     result = render_markdown_digest(
         run_date="2026-03-12",
-        posts=posts,
         insights=novelty.insights,
         scoring=scoring,
+        thread_selection=thread_selection,
         reports_root=tmp_path / "reports",
-        lookback_hours=24,
         watch_next=("Monitor prompt-state snapshots",),
-        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
     )
 
     sections = [
