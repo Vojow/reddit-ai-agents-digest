@@ -19,6 +19,8 @@ from reddit_digest.config import load_config
 from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
 from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.extractors.service import extract_insights
+from reddit_digest.extractors.openai_suggestions import build_openai_client
+from reddit_digest.extractors.openai_suggestions import generate_suggestions
 from reddit_digest.ranking.novelty import apply_novelty
 from reddit_digest.utils.retries import retry_call
 from reddit_digest.utils.state import RunState
@@ -77,6 +79,21 @@ class PipelineRunner:
             run_date=run_date,
         )
         novelty = apply_novelty(self.base_path / "data" / "processed", run_date=run_date, insights=extracted.insights)
+        suggestions = ()
+        if config.runtime.openai_api_key:
+            suggestion_result = retry_call(
+                lambda: generate_suggestions(
+                    build_openai_client(config.runtime),
+                    model=config.runtime.openai_model,
+                    posts=post_result.posts,
+                    insights=novelty.insights,
+                    processed_root=self.base_path / "data" / "processed",
+                    run_date=run_date,
+                ),
+                operation="generate_openai_suggestions",
+                logger=LOGGER,
+            )
+            suggestions = tuple(f"{item.title}: {item.rationale}" for item in suggestion_result.suggestions)
         markdown = render_markdown_digest(
             run_date=run_date,
             posts=post_result.posts,
@@ -84,6 +101,7 @@ class PipelineRunner:
             scoring=config.scoring,
             reports_root=self.base_path / "reports",
             lookback_hours=config.subreddits.fetch.lookback_hours,
+            watch_next=suggestions,
             run_at=run_at,
         )
 

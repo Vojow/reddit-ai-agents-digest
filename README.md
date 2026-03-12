@@ -55,6 +55,10 @@ Supported runtime overrides:
 - `MAX_POSTS_PER_SUBREDDIT`
 - `MAX_COMMENTS_PER_POST`
 
+If `OPENAI_API_KEY` is set, the pipeline will also generate additive `Watch Next`
+content suggestions and candidate new sources based only on the day’s collected
+findings.
+
 ## Repository layout
 
 The project uses a `src/` layout and stores:
