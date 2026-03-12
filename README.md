@@ -29,8 +29,8 @@ Run tests:
 uv run pytest
 ```
 
-Copy `.env.example` to `.env` and populate any secrets required for the commands
-you want to run.
+Copy `.env.example` to `.env` for local reference, then export the values in your
+shell or load them with your preferred environment tool before running commands.
 
 Key runtime environment variables:
 - `REDDIT_CLIENT_ID`

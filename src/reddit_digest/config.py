@@ -109,6 +109,13 @@ def _require_positive_int(payload: dict[str, Any], key: str, *, path: Path) -> i
     return value
 
 
+def _require_non_negative_int(payload: dict[str, Any], key: str, *, path: Path) -> int:
+    value = _require_int(payload, key, path=path)
+    if value < 0:
+        raise ConfigError(f"{path}: '{key}' must be greater than or equal to 0")
+    return value
+
+
 def _require_float_map(payload: dict[str, Any], key: str, *, path: Path) -> dict[str, float]:
     value = payload.get(key)
     if not isinstance(value, dict) or not value:
@@ -150,6 +157,19 @@ def _env_int(name: str, default: int) -> int:
     return value
 
 
+def _env_non_negative_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ConfigError(f"Environment variable {name} must be an integer") from exc
+    if value < 0:
+        raise ConfigError(f"Environment variable {name} must be greater than or equal to 0")
+    return value
+
+
 def _env_optional(name: str) -> str | None:
     value = os.getenv(name)
     if value is None:
@@ -188,8 +208,14 @@ def load_subreddit_config(path: Path) -> SubredditConfig:
     parsed_fetch = FetchConfig(
         lookback_hours=_env_int("LOOKBACK_HOURS", _require_positive_int(fetch, "lookback_hours", path=path)),
         sort_modes=tuple(sort_modes),
-        min_post_score=_env_int("MIN_POST_SCORE", _require_int(fetch, "min_post_score", path=path)),
-        min_comments=_env_int("MIN_COMMENTS", _require_int(fetch, "min_comments", path=path)),
+        min_post_score=_env_non_negative_int(
+            "MIN_POST_SCORE",
+            _require_non_negative_int(fetch, "min_post_score", path=path),
+        ),
+        min_comments=_env_non_negative_int(
+            "MIN_COMMENTS",
+            _require_non_negative_int(fetch, "min_comments", path=path),
+        ),
         max_posts_per_subreddit=_env_int(
             "MAX_POSTS_PER_SUBREDDIT",
             _require_positive_int(fetch, "max_posts_per_subreddit", path=path),

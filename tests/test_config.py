@@ -86,3 +86,10 @@ def test_invalid_scoring_config_fails(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="weights"):
         load_scoring_config(scoring_path)
+
+
+def test_negative_threshold_override_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MIN_POST_SCORE", "-1")
+
+    with pytest.raises(ConfigError, match="MIN_POST_SCORE"):
+        load_subreddit_config(Path.cwd() / "config" / "subreddits.yaml")
