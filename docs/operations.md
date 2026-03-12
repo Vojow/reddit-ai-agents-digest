@@ -79,7 +79,8 @@ Optional secrets:
 
 The workflow authenticates to Google with `google-github-actions/auth` using
 GitHub OIDC and short-lived credentials. It no longer requires
-`GOOGLE_SERVICE_ACCOUNT_JSON` in GitHub secrets.
+`GOOGLE_SERVICE_ACCOUNT_JSON` in GitHub secrets. Cloud-side setup steps live in
+[`docs/gcp-wif-setup.md`](gcp-wif-setup.md).
 
 On workflow failure, the action uploads `reports/`, `data/processed/`, and
 `data/state/` as an artifact for debugging.

@@ -83,7 +83,8 @@ fallback.
 The GitHub Actions workflow now authenticates to Google Cloud with OIDC via
 `google-github-actions/auth`. Set `GCP_WORKLOAD_IDENTITY_PROVIDER`,
 `GCP_SERVICE_ACCOUNT_EMAIL`, and `GOOGLE_SHEETS_SPREADSHEET_ID` as repository
-variables for CI; do not store a Google service account JSON key in GitHub.
+variables for CI; do not store a Google service account JSON key in GitHub. The
+required cloud-side setup is documented in [`docs/gcp-wif-setup.md`](docs/gcp-wif-setup.md).
 
 ## Repository layout
 
