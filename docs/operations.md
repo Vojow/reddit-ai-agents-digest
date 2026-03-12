@@ -55,3 +55,25 @@ uv run reddit-digest run-daily --date 2026-03-12
 - Same-day reruns overwrite file outputs deterministically.
 - Sheets export replaces existing rows for the same `run_date`.
 - The latest completed state is mirrored into `data/state/latest.json`.
+
+## GitHub Actions
+
+The scheduled workflow lives at `.github/workflows/daily-digest.yml`.
+
+It supports:
+- daily scheduled runs at `07:00 UTC`
+- manual dispatch from the GitHub Actions UI
+
+Repository secrets required for the full automated run:
+- `REDDIT_CLIENT_ID`
+- `REDDIT_CLIENT_SECRET`
+- `REDDIT_USER_AGENT`
+- `GOOGLE_SERVICE_ACCOUNT_JSON`
+- `GOOGLE_SHEETS_SPREADSHEET_ID`
+
+Optional secrets:
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+
+On workflow failure, the action uploads `reports/`, `data/processed/`, and
+`data/state/` as an artifact for debugging.
