@@ -7,6 +7,7 @@ from pathlib import Path
 from reddit_digest.config import load_scoring_config
 from reddit_digest.extractors.service import extract_insights
 from reddit_digest.models.comment import Comment
+from reddit_digest.models.insight import Insight
 from reddit_digest.models.post import Post
 from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.ranking.novelty import apply_novelty
@@ -45,6 +46,7 @@ def test_render_markdown_digest_writes_daily_and_latest(
     assert "## Executive Summary" in result.content
     assert "## Top Tools Mentioned" in result.content
     assert "## Notable Threads" in result.content
+    assert "## Top Threads By Subreddit" in result.content
     assert "## Emerging Themes" in result.content
 
 
@@ -82,8 +84,88 @@ def test_markdown_digest_section_order(
         "## Top Guides / Resources",
         "## Testing and Quality Insights",
         "## Notable Threads",
+        "## Top Threads By Subreddit",
         "## Emerging Themes",
         "## Watch Next",
     ]
     positions = [result.content.index(section) for section in sections]
     assert positions == sorted(positions)
+
+
+def test_markdown_digest_renders_global_top_five_and_per_subreddit_top_three(tmp_path: Path) -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    posts = tuple(
+        _build_post(post_id=f"codex-{index}", subreddit="Codex", score=120 - index, num_comments=30 - index)
+        for index in range(1, 6)
+    ) + tuple(
+        _build_post(post_id=f"claude-{index}", subreddit="ClaudeCode", score=90 - index, num_comments=20 - index)
+        for index in range(1, 5)
+    )
+    insights = tuple(_build_insight(post) for post in posts)
+    thread_selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex", "ClaudeCode"),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+        lookback_hours=24,
+    )
+
+    result = render_markdown_digest(
+        run_date="2026-03-12",
+        insights=insights,
+        scoring=scoring,
+        thread_selection=thread_selection,
+        reports_root=tmp_path / "reports",
+    )
+
+    notable_lines = _section_lines(result.content, "## Notable Threads", "## Top Threads By Subreddit")
+    assert notable_lines.count("- [") == 5
+    assert "Global top threads span 2 subreddit(s): r/Codex, r/ClaudeCode" in result.content
+
+    by_subreddit_lines = _section_lines(result.content, "## Top Threads By Subreddit", "## Emerging Themes")
+    assert by_subreddit_lines.count("### r/Codex") == 1
+    assert by_subreddit_lines.count("### r/ClaudeCode") == 1
+
+    codex_section = by_subreddit_lines.split("### r/Codex\n", maxsplit=1)[1].split("### r/ClaudeCode\n", maxsplit=1)[0]
+    claude_section = by_subreddit_lines.split("### r/ClaudeCode\n", maxsplit=1)[1]
+    assert codex_section.count("- [") == 3
+    assert claude_section.count("- [") == 3
+
+
+def _build_post(*, post_id: str, subreddit: str, score: int, num_comments: int) -> Post:
+    return Post.from_raw(
+        {
+            "id": post_id,
+            "subreddit": subreddit,
+            "title": f"{subreddit} thread {post_id}",
+            "author": "tester",
+            "score": score,
+            "num_comments": num_comments,
+            "created_utc": 1_773_316_800,
+            "url": f"https://reddit.com/r/{subreddit}/comments/{post_id}",
+            "permalink": f"/r/{subreddit}/comments/{post_id}",
+            "selftext": "workflow guide eval automation test prompt",
+        }
+    )
+
+
+def _build_insight(post: Post) -> Insight:
+    return Insight.from_raw(
+        {
+            "category": "approaches",
+            "title": f"{post.subreddit} insight {post.id}",
+            "summary": f"{post.title} contains workflow guidance.",
+            "tags": ["workflow", "testing"],
+            "evidence": f"Evidence from {post.id}",
+            "source_kind": "post",
+            "source_id": post.id,
+            "source_post_id": post.id,
+            "source_permalink": post.url,
+            "subreddit": post.subreddit,
+            "why_it_matters": f"{post.subreddit} guidance stays actionable.",
+        }
+    )
+
+
+def _section_lines(content: str, start_heading: str, end_heading: str) -> str:
+    return content.split(start_heading + "\n", maxsplit=1)[1].split("\n" + end_heading, maxsplit=1)[0]

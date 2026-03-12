@@ -1,8 +1,9 @@
 # Daily Reddit Digest — 2026-03-12
 
 ## Executive Summary
-- Agents are increasingly being used with repo-local context files and explicit recovery checkpoints.
-- Test-first prompting continues to show up as the most reliable workflow for safe code changes.
+- Headline thread: Codex agent keeps a local context file for every task (r/Codex)
+- Global top threads span 2 subreddit(s): r/Codex, r/ClaudeCode
+- Leading insights: Codex, Test-first refactors
 
 ## Top Tools Mentioned
 - Codex
@@ -34,6 +35,26 @@
   - Summary: practitioners are storing context locally between runs
   - Why it matters: durable context improves iterative agent work
   - Impact score: 8.7
+- [Claude Code workflow for test-first refactors](https://reddit.com/r/ClaudeCode/comments/post_002)
+  - Subreddit: r/ClaudeCode
+  - Summary: extracting fixtures before editing production code improves safety
+  - Why it matters: test-first prompting reduces breakage in agent-assisted changes
+  - Impact score: 8.2
+
+## Top Threads By Subreddit
+### r/Codex
+- [Codex agent keeps a local context file for every task](https://reddit.com/r/Codex/comments/post_001)
+  - Summary: practitioners are storing context locally between runs
+  - Why it matters: durable context improves iterative agent work
+  - Impact score: 8.7
+  - Extracted tags: ai-agents, context-management
+
+### r/ClaudeCode
+- [Claude Code workflow for test-first refactors](https://reddit.com/r/ClaudeCode/comments/post_002)
+  - Summary: extracting fixtures before editing production code improves safety
+  - Why it matters: test-first prompting reduces breakage in agent-assisted changes
+  - Impact score: 8.2
+  - Extracted tags: testing, workflow
 
 ## Emerging Themes
 - More teams are treating prompt stability as a testing problem.
