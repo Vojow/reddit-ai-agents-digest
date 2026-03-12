@@ -14,7 +14,7 @@ Requirements:
 Install dependencies:
 
 ```bash
-uv sync
+uv sync --dev
 ```
 
 Run the package entrypoint:

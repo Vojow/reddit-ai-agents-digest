@@ -6,7 +6,7 @@
 2–5 bullets summarizing the biggest findings.
 
 ## Top Tools Mentioned
-- Tool namse
+- Tool name
   - Why it matters
   - Source threads
   - Impact score
