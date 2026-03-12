@@ -64,8 +64,13 @@ use Reddit's public JSON endpoints with a configurable `REDDIT_USER_AGENT`.
 
 Google Sheets export now supports ambient Google credentials from Application
 Default Credentials, including Workload Identity Federation in CI. The existing
-`GOOGLE_SERVICE_ACCOUNT_JSON` input remains a backward-compatible fallback until
-the workflow migration is completed.
+`GOOGLE_SERVICE_ACCOUNT_JSON` input remains a backward-compatible local
+fallback.
+
+The GitHub Actions workflow now authenticates to Google Cloud with OIDC via
+`google-github-actions/auth`. Set `GCP_WORKLOAD_IDENTITY_PROVIDER`,
+`GCP_SERVICE_ACCOUNT_EMAIL`, and `GOOGLE_SHEETS_SPREADSHEET_ID` as repository
+variables for CI; do not store a Google service account JSON key in GitHub.
 
 ## Repository layout
 
