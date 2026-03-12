@@ -8,6 +8,7 @@ EXPECTED_SECTIONS = [
     "## Top Guides / Resources",
     "## Testing and Quality Insights",
     "## Notable Threads",
+    "## Top Threads By Subreddit",
     "## Emerging Themes",
 ]
 

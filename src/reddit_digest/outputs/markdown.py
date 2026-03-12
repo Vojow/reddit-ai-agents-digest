@@ -35,12 +35,13 @@ def render_markdown_digest(
     )
 
     lines = [f"# Daily Reddit Digest — {run_date}", ""]
-    lines.extend(_render_executive_summary(thread_selection.ranked_posts, scored_insights))
+    lines.extend(_render_executive_summary(thread_selection, scored_insights))
     lines.extend(_render_insight_section("Top Tools Mentioned", "tools", scored_insights))
     lines.extend(_render_insight_section("Top Approaches / Workflows", "approaches", scored_insights))
     lines.extend(_render_insight_section("Top Guides / Resources", "guides", scored_insights))
     lines.extend(_render_insight_section("Testing and Quality Insights", "testing", scored_insights))
-    lines.extend(_render_notable_threads(thread_selection.notable_threads, scored_insights))
+    lines.extend(_render_notable_threads(thread_selection, scored_insights))
+    lines.extend(_render_threads_by_subreddit(thread_selection, scored_insights))
     lines.extend(_render_emerging_themes(scored_insights))
     watch_next_lines = _render_watch_next(watch_next=watch_next, scored_insights=scored_insights)
     if watch_next_lines:
@@ -55,14 +56,16 @@ def render_markdown_digest(
     return MarkdownDigestResult(daily_path=daily_path, latest_path=latest_path, content=content)
 
 
-def _render_executive_summary(ranked_posts: tuple[RankedPost, ...], scored_insights: list[tuple[Insight, object]]) -> list[str]:
-    top_post = ranked_posts[0].post if ranked_posts else None
+def _render_executive_summary(thread_selection: ThreadSelection, scored_insights: list[tuple[Insight, object]]) -> list[str]:
+    top_post = thread_selection.ranked_posts[0].post if thread_selection.ranked_posts else None
+    represented = tuple(dict.fromkeys(item.post.subreddit for item in thread_selection.notable_threads))
     top_insights = [insight.title for insight, _ in scored_insights[:2]]
     bullets = [
         "## Executive Summary",
-        *(f"- Top thread: {top_post.title}" for _ in [0] if top_post is not None),
+        *(f"- Headline thread: {top_post.title} (r/{top_post.subreddit})" for _ in [0] if top_post is not None),
+        *(f"- Global top threads span {len(represented)} subreddit(s): {', '.join(f'r/{name}' for name in represented)}" for _ in [0] if represented),
         *(f"- Leading insights: {', '.join(top_insights)}" for _ in [0] if top_insights),
-        f"- Total posts analyzed: {len(ranked_posts)}",
+        f"- Total posts analyzed: {len(thread_selection.ranked_posts)}",
         f"- Total insights extracted: {len(scored_insights)}",
         "",
     ]
@@ -91,28 +94,61 @@ def _render_insight_section(
 
 
 def _render_notable_threads(
-    ranked_posts: tuple[RankedPost, ...],
+    thread_selection: ThreadSelection,
     scored_insights: list[tuple[Insight, object]],
 ) -> list[str]:
     lines = ["## Notable Threads"]
-    if not ranked_posts:
+    if not thread_selection.notable_threads:
         lines.append("- No notable threads today.")
         lines.append("")
         return lines
 
-    for ranked_post in ranked_posts:
-        post = ranked_post.post
-        related = [insight for insight, _ in scored_insights if insight.source_post_id == post.id]
-        why_it_matters = related[0].why_it_matters if related and related[0].why_it_matters else "Relevant discussion for AI-assisted development workflows."
-        tags = sorted({tag for insight in related for tag in insight.tags})
-        summary = (post.selftext or post.title).strip()
-        lines.append(f"- [{post.title}]({post.url})")
-        lines.append(f"  - Subreddit: r/{post.subreddit}")
-        lines.append(f"  - Summary: {summary}")
-        lines.append(f"  - Why it matters: {why_it_matters}")
-        lines.append(f"  - Impact score: {ranked_post.breakdown.total:.2f}")
-        lines.append(f"  - Extracted tags: {', '.join(tags) if tags else 'none'}")
+    for ranked_post in thread_selection.notable_threads:
+        lines.extend(_render_thread_details(ranked_post, scored_insights=scored_insights, include_subreddit=True))
     lines.append("")
+    return lines
+
+
+def _render_threads_by_subreddit(
+    thread_selection: ThreadSelection,
+    scored_insights: list[tuple[Insight, object]],
+) -> list[str]:
+    lines = ["## Top Threads By Subreddit"]
+    if not thread_selection.by_subreddit:
+        lines.append("- No subreddit-specific thread rankings today.")
+        lines.append("")
+        return lines
+
+    for group in thread_selection.by_subreddit:
+        lines.append(f"### r/{group.subreddit}")
+        if not group.posts:
+            lines.append("- No notable threads today.")
+            lines.append("")
+            continue
+        for ranked_post in group.posts:
+            lines.extend(_render_thread_details(ranked_post, scored_insights=scored_insights, include_subreddit=False))
+        lines.append("")
+    return lines
+
+
+def _render_thread_details(
+    ranked_post: RankedPost,
+    *,
+    scored_insights: list[tuple[Insight, object]],
+    include_subreddit: bool,
+) -> list[str]:
+    post = ranked_post.post
+    related = [insight for insight, _ in scored_insights if insight.source_post_id == post.id]
+    why_it_matters = related[0].why_it_matters if related and related[0].why_it_matters else "Relevant discussion for AI-assisted development workflows."
+    tags = sorted({tag for insight in related for tag in insight.tags})
+    summary = (post.selftext or post.title).strip()
+    lines = [f"- [{post.title}]({post.url})"]
+    if include_subreddit:
+        lines.append(f"  - Subreddit: r/{post.subreddit}")
+    lines.append(f"  - Summary: {summary}")
+    lines.append(f"  - Why it matters: {why_it_matters}")
+    lines.append(f"  - Impact score: {ranked_post.breakdown.total:.2f}")
+    lines.append(f"  - Extracted tags: {', '.join(tags) if tags else 'none'}")
     return lines
 
 
