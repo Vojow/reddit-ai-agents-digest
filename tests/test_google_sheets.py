@@ -20,6 +20,7 @@ from reddit_digest.outputs.google_sheets import RAW_POSTS_TAB
 from reddit_digest.outputs.google_sheets import load_google_sheets_credentials
 from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.ranking.novelty import apply_novelty
+from reddit_digest.ranking.threads import select_threads
 
 
 @dataclass
@@ -71,15 +72,20 @@ def build_inputs(sample_posts_payload: list[dict[str, object]], sample_comments_
     scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
     extracted = extract_insights(posts, comments, processed_root=tmp_path / "processed", run_date="2026-03-12")
     novelty = apply_novelty(tmp_path / "processed", run_date="2026-03-12", insights=extracted.insights)
+    thread_selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex", "ClaudeCode", "Vibecoding"),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+        lookback_hours=24,
+    )
     markdown = render_markdown_digest(
         run_date="2026-03-12",
-        posts=posts,
         insights=novelty.insights,
         scoring=scoring,
+        thread_selection=thread_selection,
         reports_root=tmp_path / "reports",
-        lookback_hours=24,
         watch_next=("Monitor prompt-state snapshots",),
-        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
     )
     return posts, novelty.insights, scoring, markdown.content
 
