@@ -34,7 +34,7 @@ Optional environment variables:
 Run the full pipeline without Sheets export:
 
 ```bash
-uv run reddit-digest run-daily --date 2026-03-12 --skip-sheets
+make run-markdown
 ```
 
 Run the full pipeline including Sheets export:
@@ -70,6 +70,7 @@ It supports:
 - daily scheduled runs at `07:00 UTC`
 - manual dispatch from the GitHub Actions UI
 - markdown generation without Google Sheets export
+- execution on a `self-hosted` runner only
 
 Repository secrets required for the full automated run:
 - `REDDIT_USER_AGENT`
@@ -78,10 +79,15 @@ Optional secrets:
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 
-The workflow currently runs `uv run reddit-digest run-daily --skip-sheets`, so
-Google auth is not required in CI. If you later want Sheets export in GitHub
-Actions, use the runbook in [`docs/gcp-wif-setup.md`](gcp-wif-setup.md) and
-reintroduce the OIDC auth step.
+GitHub-hosted runners are not supported for live Reddit collection because
+Reddit blocks the public JSON requests from those runner networks. The workflow
+therefore runs only on a `self-hosted` runner and uses the same canonical local
+command as manual execution: `make run-markdown`.
+
+The workflow currently runs markdown-only, so Google auth is not required in
+CI. Google auth is not required in CI for the current markdown-only workflow.
+If you later want Sheets export in self-hosted CI, use the runbook in
+[`docs/gcp-wif-setup.md`](gcp-wif-setup.md) and reintroduce the OIDC auth step.
 
 On workflow failure, the action uploads `reports/`, `data/processed/`, and
 `data/state/` as an artifact for debugging.

@@ -22,6 +22,7 @@ def test_daily_workflow_runs_markdown_without_google_auth() -> None:
     env = job["env"]
     steps = job["steps"]
 
+    assert job["runs-on"] == "self-hosted"
     assert "permissions" not in job
     assert env["REDDIT_USER_AGENT"] == "${{ vars.REDDIT_USER_AGENT }}"
     assert env["OPENAI_MODEL"] == "${{ vars.OPENAI_MODEL }}"
@@ -31,7 +32,7 @@ def test_daily_workflow_runs_markdown_without_google_auth() -> None:
     assert all(step.get("uses") != "google-github-actions/auth@v3" for step in steps)
 
     run_step = next(step for step in steps if step.get("name") == "Run daily digest pipeline")
-    assert run_step["run"] == "uv run reddit-digest run-daily --skip-sheets"
+    assert run_step["run"] == "make run-markdown"
 
 
 def test_daily_workflow_remains_manually_runnable() -> None:

@@ -26,7 +26,7 @@ uv run reddit-digest --help
 Run the full daily pipeline locally without Sheets export:
 
 ```bash
-uv run reddit-digest run-daily --date 2026-03-12 --skip-sheets
+make run-markdown
 ```
 
 Run tests:
@@ -80,10 +80,17 @@ Default Credentials, including Workload Identity Federation in CI. The existing
 `GOOGLE_SERVICE_ACCOUNT_JSON` input remains a backward-compatible local
 fallback.
 
-The GitHub Actions workflow currently runs the markdown pipeline only with
+The supported automated execution path is now a GitHub Actions `self-hosted`
+runner or a direct local run on the same machine. GitHub-hosted runners are not
+supported for live Reddit collection because Reddit blocks the public JSON
+requests from those runner IPs. The canonical markdown-only command is
+`make run-markdown`.
+
+The self-hosted GitHub Actions workflow runs the markdown pipeline only with
 `--skip-sheets`, so it does not require Google credentials. When you want to
-re-enable Google Sheets export in CI, use the setup runbook in
+re-enable Google Sheets export in self-hosted CI, use the setup runbook in
 [`docs/gcp-wif-setup.md`](docs/gcp-wif-setup.md).
+Google Sheets export in CI is currently disabled by design.
 
 ## Repository layout
 

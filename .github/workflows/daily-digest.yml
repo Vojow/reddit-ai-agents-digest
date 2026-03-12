@@ -7,7 +7,7 @@ on:
 
 jobs:
   run-digest:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 30
     env:
       REDDIT_USER_AGENT: ${{ vars.REDDIT_USER_AGENT }}
@@ -29,7 +29,7 @@ jobs:
         run: uv sync --dev
 
       - name: Run daily digest pipeline
-        run: uv run reddit-digest run-daily --skip-sheets
+        run: make run-markdown
 
       - name: Upload pipeline artifacts on failure
         if: failure()
