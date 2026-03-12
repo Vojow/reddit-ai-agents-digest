@@ -14,6 +14,11 @@ Google authentication for local Sheets export can come from either:
 - ambient Application Default Credentials, including Workload Identity Federation in CI
 - `GOOGLE_SERVICE_ACCOUNT_JSON` as a backward-compatible local fallback
 
+Local development differs from CI:
+- CI gets short-lived Google credentials from GitHub OIDC and Workload Identity Federation.
+- Local runs should use Application Default Credentials first, for example via `gcloud auth application-default login`.
+- `GOOGLE_SERVICE_ACCOUNT_JSON` is only a local fallback when ADC is not available.
+
 Optional environment variables:
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
