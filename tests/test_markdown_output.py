@@ -44,9 +44,7 @@ def test_render_markdown_digest_writes_daily_and_latest(
     assert result.latest_path.exists()
     assert result.daily_path.read_text() == result.latest_path.read_text()
     assert "## Executive Summary" in result.content
-    assert "## Top Tools Mentioned" in result.content
-    assert "## Notable Threads" in result.content
-    assert "## Top Threads By Subreddit" in result.content
+    assert "## Picked Topics" in result.content
     assert "## Emerging Themes" in result.content
 
 
@@ -79,12 +77,7 @@ def test_markdown_digest_section_order(
 
     sections = [
         "## Executive Summary",
-        "## Top Tools Mentioned",
-        "## Top Approaches / Workflows",
-        "## Top Guides / Resources",
-        "## Testing and Quality Insights",
-        "## Notable Threads",
-        "## Top Threads By Subreddit",
+        "## Picked Topics",
         "## Emerging Themes",
         "## Watch Next",
     ]
@@ -92,7 +85,7 @@ def test_markdown_digest_section_order(
     assert positions == sorted(positions)
 
 
-def test_markdown_digest_renders_global_top_five_and_per_subreddit_top_three(tmp_path: Path) -> None:
+def test_markdown_digest_renders_picked_topics_with_summary_relevance_and_source(tmp_path: Path) -> None:
     scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
     posts = tuple(
         _build_post(post_id=f"codex-{index}", subreddit="Codex", score=120 - index, num_comments=30 - index)
@@ -118,18 +111,14 @@ def test_markdown_digest_renders_global_top_five_and_per_subreddit_top_three(tmp
         reports_root=tmp_path / "reports",
     )
 
-    notable_lines = _section_lines(result.content, "## Notable Threads", "## Top Threads By Subreddit")
-    assert notable_lines.count("- [") == 5
-    assert "Global top threads span 2 subreddit(s): r/Codex, r/ClaudeCode" in result.content
-
-    by_subreddit_lines = _section_lines(result.content, "## Top Threads By Subreddit", "## Emerging Themes")
-    assert by_subreddit_lines.count("### r/Codex") == 1
-    assert by_subreddit_lines.count("### r/ClaudeCode") == 1
-
-    codex_section = by_subreddit_lines.split("### r/Codex\n", maxsplit=1)[1].split("### r/ClaudeCode\n", maxsplit=1)[0]
-    claude_section = by_subreddit_lines.split("### r/ClaudeCode\n", maxsplit=1)[1]
-    assert codex_section.count("- [") == 3
-    assert claude_section.count("- [") == 3
+    topic_lines = _section_lines(result.content, "## Picked Topics", "## Emerging Themes")
+    assert topic_lines.count("### ") == 6
+    assert "- Executive summary:" in topic_lines
+    assert "- Relevance for you:" in topic_lines
+    assert "- Original post:" in topic_lines
+    assert "- Source subreddit: r/Codex" in topic_lines
+    assert "- Source subreddit: r/ClaudeCode" in topic_lines
+    assert "Picked 6 topics from 2 subreddit(s): r/Codex, r/ClaudeCode" in result.content
 
 
 def test_markdown_digest_is_deterministic_for_same_inputs(tmp_path: Path) -> None:

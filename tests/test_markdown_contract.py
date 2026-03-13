@@ -3,12 +3,7 @@ from __future__ import annotations
 
 EXPECTED_SECTIONS = [
     "## Executive Summary",
-    "## Top Tools Mentioned",
-    "## Top Approaches / Workflows",
-    "## Top Guides / Resources",
-    "## Testing and Quality Insights",
-    "## Notable Threads",
-    "## Top Threads By Subreddit",
+    "## Picked Topics",
     "## Emerging Themes",
 ]
 
