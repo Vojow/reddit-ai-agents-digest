@@ -38,9 +38,8 @@ def publish_digest_to_teams(
     emerging_themes: tuple[str, ...],
     watch_next: tuple[str, ...],
     openai_usage: OpenAIUsageSummary,
-    deterministic_report_path: str,
-    preferred_report_path: str,
-    llm_report_path: str | None,
+    selected_report_variant: str,
+    preferred_executive_summary: str | None,
     session: SessionLike | None = None,
 ) -> None:
     http_session = session or requests.Session()
@@ -51,9 +50,8 @@ def publish_digest_to_teams(
         emerging_themes=emerging_themes,
         watch_next=watch_next,
         openai_usage=openai_usage,
-        deterministic_report_path=deterministic_report_path,
-        preferred_report_path=preferred_report_path,
-        llm_report_path=llm_report_path,
+        selected_report_variant=selected_report_variant,
+        preferred_executive_summary=preferred_executive_summary,
     )
     response = http_session.post(webhook_url, json=payload, timeout=20)
     response.raise_for_status()
@@ -67,20 +65,18 @@ def build_teams_payload(
     emerging_themes: tuple[str, ...],
     watch_next: tuple[str, ...],
     openai_usage: OpenAIUsageSummary,
-    deterministic_report_path: str,
-    preferred_report_path: str,
-    llm_report_path: str | None,
+    selected_report_variant: str,
+    preferred_executive_summary: str | None,
 ) -> dict[str, Any]:
     sections: list[dict[str, Any]] = [
         {
             "activityTitle": "Report",
             "facts": [
                 {"name": "Run date", "value": run_date},
-                {"name": "Preferred report", "value": preferred_report_path},
-                {"name": "Source of record", "value": deterministic_report_path},
+                {"name": "Selected report", "value": selected_report_variant},
                 *(
-                    [{"name": "LLM report", "value": llm_report_path}]
-                    if llm_report_path is not None
+                    [{"name": "Executive summary", "value": preferred_executive_summary}]
+                    if preferred_executive_summary is not None
                     else []
                 ),
             ],
@@ -144,3 +140,19 @@ def _build_watch_next_facts(watch_next: tuple[str, ...]) -> list[dict[str, str]]
     if not watch_next:
         return [{"name": "Items", "value": "No watch-next items."}]
     return [{"name": f"{index}.", "value": item} for index, item in enumerate(watch_next, start=1)]
+
+
+def extract_executive_summary(content: str) -> str | None:
+    lines = iter(content.splitlines())
+    for line in lines:
+        if line.strip() == "## Executive Summary":
+            for candidate in lines:
+                stripped = candidate.strip()
+                if not stripped:
+                    continue
+                if stripped.startswith("## "):
+                    return None
+                if stripped.startswith("- "):
+                    return stripped[2:].strip() or None
+            return None
+    return None

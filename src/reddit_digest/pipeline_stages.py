@@ -19,6 +19,7 @@ from reddit_digest.outputs.digest import build_digest_artifact
 from reddit_digest.outputs.digest import DigestArtifact
 from reddit_digest.outputs.digest import RankedTopic
 from reddit_digest.outputs.markdown import MarkdownDigestResult
+from reddit_digest.outputs.teams import extract_executive_summary
 from reddit_digest.outputs.teams import TeamsTopicSummary
 from reddit_digest.ranking.threads import ThreadSelection
 from reddit_digest.utils.state import RunState
@@ -387,6 +388,7 @@ class DeliveryStage:
         teams_published = False
         teams_error = None
         if context.config.runtime.teams_webhook_url:
+            preferred_markdown = rendered.llm_markdown or rendered.markdown
             try:
                 self.retry_call(
                     lambda: self.publish_digest_to_teams(
@@ -405,16 +407,13 @@ class DeliveryStage:
                         emerging_themes=tuple(theme.label for theme in rendered.digest.emerging_themes),
                         watch_next=rendered.digest.watch_next,
                         openai_usage=openai.usage,
-                        deterministic_report_path=str(rendered.markdown.daily_path.relative_to(self.base_path)),
-                        preferred_report_path=str(
-                            (
-                                rendered.llm_markdown.daily_path
-                                if rendered.llm_markdown is not None
-                                else rendered.markdown.daily_path
-                            ).relative_to(self.base_path)
+                        selected_report_variant=(
+                            "LLM-enhanced"
+                            if rendered.llm_markdown is not None
+                            else "Deterministic"
                         ),
-                        llm_report_path=(
-                            str(rendered.llm_markdown.daily_path.relative_to(self.base_path))
+                        preferred_executive_summary=(
+                            extract_executive_summary(preferred_markdown.content)
                             if rendered.llm_markdown is not None
                             else None
                         ),
