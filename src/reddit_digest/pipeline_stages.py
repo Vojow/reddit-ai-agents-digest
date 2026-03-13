@@ -12,6 +12,8 @@ import logging
 from reddit_digest.collectors.reddit_comments import PublicRedditCommentSource
 from reddit_digest.collectors.reddit_posts import PublicRedditPostSource
 from reddit_digest.config import AppConfig
+from reddit_digest.extractors.openai_suggestions import ExecutiveSummaryRewriteRequest
+from reddit_digest.extractors.openai_suggestions import TopicRewriteRequest
 from reddit_digest.models.insight import Insight
 from reddit_digest.models.openai_usage import OpenAIUsageSummary
 from reddit_digest.models.post import Post
@@ -20,6 +22,7 @@ from reddit_digest.outputs.digest import DigestArtifact
 from reddit_digest.outputs.digest import RankedTopic
 from reddit_digest.outputs.markdown import MarkdownDigestResult
 from reddit_digest.outputs.teams import extract_executive_summary
+from reddit_digest.outputs.teams import TeamsDigestPayload
 from reddit_digest.outputs.teams import TeamsTopicSummary
 from reddit_digest.ranking.threads import ThreadSelection
 from reddit_digest.utils.state import RunState
@@ -220,25 +223,13 @@ class OpenAIStage:
             watch_next = tuple(f"{item.title}: {item.rationale}" for item in suggestion_result.suggestions)
 
         if analysis.digest_topics and not skip_topic_rewrites:
+            rewrite_requests = _build_topic_rewrite_requests(analysis.digest_topics)
             try:
                 rewrite_result = self.retry_call(
                     lambda: self.generate_topic_rewrites(
                         openai_client,
                         model=context.config.runtime.openai_model,
-                        topics=tuple(
-                            {
-                                "topic_key": topic.topic_key,
-                                "title": topic.title,
-                                "executive_summary": topic.executive_summary,
-                                "relevance_for_user": topic.relevance_for_user,
-                                "source_title": topic.source_title,
-                                "source_subreddit": topic.source_subreddit,
-                                "source_url": topic.source_url,
-                                "impact_score": topic.impact_score,
-                                "support_count": topic.support_count,
-                            }
-                            for topic in analysis.digest_topics
-                        ),
+                        requests=rewrite_requests,
                         processed_root=processed_root,
                         run_date=context.run_date,
                     ),
@@ -260,41 +251,29 @@ class OpenAIStage:
                     for item in rewrite_result.rewrites
                 }
                 try:
+                    summary_request = _build_executive_summary_rewrite_request(
+                        run_date=context.run_date,
+                        analysis=analysis,
+                        topic_requests=rewrite_requests,
+                    )
                     executive_summary_result = self.retry_call(
                         lambda: self.generate_executive_summary_rewrite(
                             openai_client,
                             model=context.config.runtime.openai_model,
-                            summary_payload={
-                                "run_date": context.run_date,
-                                "total_posts": len(analysis.thread_selection.ranked_posts),
-                                "represented_subreddits": tuple(
-                                    dict.fromkeys(item.post.subreddit for item in analysis.thread_selection.ranked_posts)
-                                ),
-                                "top_topic_title": analysis.digest_topics[0].title if analysis.digest_topics else None,
-                                "topics": tuple(
-                                    {
-                                        "title": topic.title,
-                                        "executive_summary": topic.executive_summary,
-                                        "relevance_for_user": topic.relevance_for_user,
-                                        "source_subreddit": topic.source_subreddit,
-                                        "support_count": topic.support_count,
-                                        "impact_score": topic.impact_score,
-                                    }
-                                    for topic in analysis.digest_topics
-                                ),
-                            },
+                            request=summary_request,
                             processed_root=processed_root,
                             run_date=context.run_date,
                         ),
                         operation="rewrite_openai_executive_summary",
                         logger=self.logger,
                     )
-                except Exception:
-                    self.logger.warning(
-                        "Skipping LLM executive summary rewrite for %s after failure",
-                        context.run_date,
-                        exc_info=True,
-                    )
+                except Exception as exc:
+                    self.logger.warning("Skipping LLM executive summary rewrite for %s after failure", context.run_date, exc_info=True)
+                    quota_warning = self.build_rewrite_warning(exc)
+                    if quota_warning is not None:
+                        markdown_warnings.append(quota_warning)
+                    else:
+                        raise
                 else:
                     executive_summary_rewrite = executive_summary_result.executive_summary
 
@@ -328,23 +307,15 @@ class RenderStage:
             topics=analysis.digest_topics,
         )
         markdown = self.render_markdown_digest(
-            run_date=context.run_date,
-            insights=analysis.insights,
-            scoring=context.config.scoring,
-            thread_selection=analysis.thread_selection,
+            digest=digest,
             reports_root=self.base_path / "reports",
             warnings=openai.warnings,
-            digest=digest,
         )
         llm_markdown = None
         if openai.topic_rewrites or openai.executive_summary_rewrite:
             llm_markdown = self.render_markdown_digest(
-                run_date=context.run_date,
-                insights=analysis.insights,
-                scoring=context.config.scoring,
-                thread_selection=analysis.thread_selection,
-                reports_root=self.base_path / "reports",
                 digest=digest,
+                reports_root=self.base_path / "reports",
                 topic_rewrites=openai.topic_rewrites,
                 executive_summary_rewrite=openai.executive_summary_rewrite,
                 variant_suffix="llm",
@@ -389,34 +360,33 @@ class DeliveryStage:
         teams_error = None
         if context.config.runtime.teams_webhook_url:
             preferred_markdown = rendered.llm_markdown or rendered.markdown
+            teams_payload = TeamsDigestPayload(
+                run_date=context.run_date,
+                warnings=openai.warnings,
+                topics=tuple(
+                    TeamsTopicSummary(
+                        title=topic.title,
+                        source_url=topic.source_url,
+                        subreddit=topic.source_subreddit,
+                        impact_score=topic.impact_score,
+                    )
+                    for topic in rendered.digest.topics
+                ),
+                emerging_themes=tuple(theme.label for theme in rendered.digest.emerging_themes),
+                watch_next=rendered.digest.watch_next,
+                openai_usage=openai.usage,
+                selected_report_variant=("LLM-enhanced" if rendered.llm_markdown is not None else "Deterministic"),
+                preferred_executive_summary=(
+                    extract_executive_summary(preferred_markdown.content)
+                    if rendered.llm_markdown is not None
+                    else None
+                ),
+            )
             try:
                 self.retry_call(
                     lambda: self.publish_digest_to_teams(
                         context.config.runtime.teams_webhook_url,
-                        run_date=context.run_date,
-                        warnings=openai.warnings,
-                        topics=tuple(
-                            TeamsTopicSummary(
-                                title=topic.title,
-                                source_url=topic.source_url,
-                                subreddit=topic.source_subreddit,
-                                impact_score=topic.impact_score,
-                            )
-                            for topic in rendered.digest.topics
-                        ),
-                        emerging_themes=tuple(theme.label for theme in rendered.digest.emerging_themes),
-                        watch_next=rendered.digest.watch_next,
-                        openai_usage=openai.usage,
-                        selected_report_variant=(
-                            "LLM-enhanced"
-                            if rendered.llm_markdown is not None
-                            else "Deterministic"
-                        ),
-                        preferred_executive_summary=(
-                            extract_executive_summary(preferred_markdown.content)
-                            if rendered.llm_markdown is not None
-                            else None
-                        ),
+                        teams_payload,
                     ),
                     operation="publish_teams_digest",
                     logger=self.logger,
@@ -462,3 +432,36 @@ class StateStage:
         )
         self.write_run_state(self.base_path / "data" / "state", state)
         return state
+
+
+def _build_topic_rewrite_requests(topics: tuple[RankedTopic, ...]) -> tuple[TopicRewriteRequest, ...]:
+    return tuple(
+        TopicRewriteRequest(
+            topic_key=topic.topic_key,
+            title=topic.title,
+            executive_summary=topic.executive_summary,
+            relevance_for_user=topic.relevance_for_user,
+            source_title=topic.source_title,
+            source_subreddit=topic.source_subreddit,
+            source_url=topic.source_url,
+            impact_score=topic.impact_score,
+            support_count=topic.support_count,
+        )
+        for topic in topics
+    )
+
+
+def _build_executive_summary_rewrite_request(
+    *,
+    run_date: str,
+    analysis: AnalysisArtifacts,
+    topic_requests: tuple[TopicRewriteRequest, ...],
+) -> ExecutiveSummaryRewriteRequest:
+    represented_subreddits = tuple(dict.fromkeys(item.post.subreddit for item in analysis.thread_selection.ranked_posts))
+    return ExecutiveSummaryRewriteRequest(
+        run_date=run_date,
+        total_posts=len(analysis.thread_selection.ranked_posts),
+        represented_subreddits=represented_subreddits,
+        top_topic_title=analysis.digest_topics[0].title if analysis.digest_topics else None,
+        topics=topic_requests,
+    )

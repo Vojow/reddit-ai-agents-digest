@@ -9,9 +9,10 @@ from reddit_digest.extractors.service import extract_insights
 from reddit_digest.models.comment import Comment
 from reddit_digest.models.insight import Insight
 from reddit_digest.models.post import Post
+from reddit_digest.outputs.digest import build_digest_artifact
+from reddit_digest.outputs.digest import select_digest_topics
+from reddit_digest.outputs.digest import select_emerging_themes
 from reddit_digest.outputs.markdown import render_markdown_digest
-from reddit_digest.outputs.markdown import select_digest_topics
-from reddit_digest.outputs.markdown import select_emerging_themes
 from reddit_digest.ranking.novelty import apply_novelty
 from reddit_digest.ranking.threads import select_threads
 
@@ -33,12 +34,15 @@ def test_render_markdown_digest_writes_daily_and_latest(
         run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
         lookback_hours=24,
     )
-
-    result = render_markdown_digest(
+    digest = build_digest_artifact(
         run_date="2026-03-12",
         insights=novelty.insights,
         scoring=scoring,
         thread_selection=thread_selection,
+    )
+
+    result = render_markdown_digest(
+        digest=digest,
         reports_root=tmp_path / "reports",
     )
 
@@ -67,14 +71,17 @@ def test_markdown_digest_section_order(
         run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
         lookback_hours=24,
     )
-
-    result = render_markdown_digest(
+    digest = build_digest_artifact(
         run_date="2026-03-12",
         insights=novelty.insights,
         scoring=scoring,
         thread_selection=thread_selection,
-        reports_root=tmp_path / "reports",
         watch_next=("Monitor prompt-state snapshots",),
+    )
+
+    result = render_markdown_digest(
+        digest=digest,
+        reports_root=tmp_path / "reports",
     )
 
     sections = [
@@ -101,12 +108,15 @@ def test_markdown_digest_renders_warnings_before_executive_summary(tmp_path: Pat
         run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
         lookback_hours=24,
     )
-
-    result = render_markdown_digest(
+    digest = build_digest_artifact(
         run_date="2026-03-12",
         insights=insights,
         scoring=scoring,
         thread_selection=thread_selection,
+    )
+
+    result = render_markdown_digest(
+        digest=digest,
         reports_root=tmp_path / "reports",
         warnings=(
             "OPENAI QUOTA EXHAUSTED: Watch Next suggestions, LLM topic rewrites, and LLM executive summary rewrites were skipped. The deterministic markdown below was generated successfully without OpenAI enhancements.",
@@ -134,12 +144,15 @@ def test_markdown_digest_renders_picked_topics_with_summary_relevance_and_source
         run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
         lookback_hours=24,
     )
-
-    result = render_markdown_digest(
+    digest = build_digest_artifact(
         run_date="2026-03-12",
         insights=insights,
         scoring=scoring,
         thread_selection=thread_selection,
+    )
+
+    result = render_markdown_digest(
+        digest=digest,
         reports_root=tmp_path / "reports",
     )
 
@@ -168,19 +181,19 @@ def test_markdown_digest_is_deterministic_for_same_inputs(tmp_path: Path) -> Non
         run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
         lookback_hours=24,
     )
-
-    first = render_markdown_digest(
+    digest = build_digest_artifact(
         run_date="2026-03-12",
         insights=insights,
         scoring=scoring,
         thread_selection=thread_selection,
+    )
+
+    first = render_markdown_digest(
+        digest=digest,
         reports_root=tmp_path / "reports-one",
     )
     second = render_markdown_digest(
-        run_date="2026-03-12",
-        insights=insights,
-        scoring=scoring,
-        thread_selection=thread_selection,
+        digest=digest,
         reports_root=tmp_path / "reports-two",
     )
 
@@ -207,14 +220,17 @@ def test_render_markdown_digest_writes_llm_variant_with_rewritten_topics(tmp_pat
         scoring=scoring,
         thread_selection=thread_selection,
     )
-
-    result = render_markdown_digest(
+    digest = build_digest_artifact(
         run_date="2026-03-12",
         insights=insights,
         scoring=scoring,
         thread_selection=thread_selection,
-        reports_root=tmp_path / "reports",
         topics=topics,
+    )
+
+    result = render_markdown_digest(
+        digest=digest,
+        reports_root=tmp_path / "reports",
         executive_summary_rewrite="Three specific workflow topics stand out today across Codex and ClaudeCode.",
         topic_rewrites={
             topics[0].topic_key: (

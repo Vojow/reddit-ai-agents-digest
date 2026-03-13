@@ -20,6 +20,7 @@ from reddit_digest.models.insight import Insight
 from reddit_digest.models.openai_usage import OpenAIOperationUsage
 from reddit_digest.models.openai_usage import OpenAIUsageSummary
 from reddit_digest.models.post import Post
+from reddit_digest.outputs.teams import TeamsDigestPayload
 from reddit_digest.pipeline import PipelineRunner
 from reddit_digest.utils.retries import retry_call
 from reddit_digest.utils.state import RunState
@@ -204,7 +205,7 @@ def test_pipeline_keeps_deterministic_markdown_when_llm_variant_fails(
     assert "Skipping LLM markdown variant for 2026-03-12 after topic rewrite failure" in caplog.text
 
 
-def test_pipeline_keeps_llm_variant_when_executive_summary_rewrite_fails(
+def test_pipeline_fails_when_executive_summary_rewrite_fails_non_quota_validation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
@@ -341,12 +342,11 @@ def test_pipeline_keeps_llm_variant_when_executive_summary_rewrite_fails(
         lambda func, **_kwargs: func(),
     )
 
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.WARNING), pytest.raises(RuntimeError, match="executive summary failed"):
         PipelineRunner(base_path=tmp_path).run(run_date="2026-03-12", skip_sheets=True)
 
     llm_report = tmp_path / "reports" / "daily" / "2026-03-12.llm.md"
-    assert llm_report.exists()
-    assert "Sharper summary for topic 1." in llm_report.read_text()
+    assert not llm_report.exists()
     assert "Skipping LLM executive summary rewrite for 2026-03-12 after failure" in caplog.text
 
 
@@ -729,9 +729,10 @@ def test_pipeline_publishes_to_teams_and_persists_openai_usage(
     assert state.teams_error is None
     assert state.openai_usage.total_tokens == 160
     assert published["args"][0] == "https://contoso.example/webhook"
-    assert published["kwargs"]["selected_report_variant"] == "LLM-enhanced"
-    assert published["kwargs"]["preferred_executive_summary"] == "Three workflow-specific topics stand out across Codex today."
-    assert published["kwargs"]["watch_next"] == ("Prompt-state snapshots: Track tomorrow",)
+    assert isinstance(published["args"][1], TeamsDigestPayload)
+    assert published["args"][1].selected_report_variant == "LLM-enhanced"
+    assert published["args"][1].preferred_executive_summary == "Three workflow-specific topics stand out across Codex today."
+    assert published["args"][1].watch_next == ("Prompt-state snapshots: Track tomorrow",)
     assert "OpenAI usage totals: calls=2 input_tokens=120 output_tokens=40 total_tokens=160" in caplog.text
 
 

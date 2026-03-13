@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from reddit_digest.config import AppConfig
 from reddit_digest.config import FetchConfig
 from reddit_digest.config import load_scoring_config
@@ -13,6 +15,7 @@ from reddit_digest.config import SubredditConfig
 from reddit_digest.models.insight import Insight
 from reddit_digest.models.openai_usage import OpenAIUsageSummary
 from reddit_digest.models.post import Post
+from reddit_digest.outputs.teams import TeamsDigestPayload
 from reddit_digest.outputs.digest import DigestArtifact
 from reddit_digest.outputs.digest import DigestThread
 from reddit_digest.outputs.digest import EmergingTheme
@@ -208,6 +211,59 @@ def test_openai_stage_returns_warning_and_skips_rewrites_on_quota_error(tmp_path
     )
 
 
+def test_openai_stage_reraises_non_quota_executive_summary_failures(tmp_path: Path) -> None:
+    class FakeLogger:
+        def warning(self, *_args, **_kwargs) -> None:
+            return None
+
+    class FakeOpenAIClient:
+        def usage_summary(self) -> OpenAIUsageSummary:
+            return OpenAIUsageSummary.empty()
+
+    stage = OpenAIStage(
+        base_path=tmp_path,
+        logger=FakeLogger(),
+        retry_call=lambda func, **_kwargs: func(),
+        build_openai_client=lambda _runtime: FakeOpenAIClient(),
+        generate_suggestions=lambda *_args, **_kwargs: SimpleNamespace(suggestions=()),
+        generate_topic_rewrites=lambda *_args, **_kwargs: SimpleNamespace(
+            rewrites=(SimpleNamespace(topic_key="topic_1", executive_summary="summary", relevance_for_user="relevance"),)
+        ),
+        generate_executive_summary_rewrite=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("bad schema")),
+        build_suggestion_warning=lambda exc: f"warning:{exc}",
+        build_rewrite_warning=lambda _exc: None,
+    )
+
+    with pytest.raises(RuntimeError, match="bad schema"):
+        stage.run(
+            _build_context(tmp_path, openai_api_key="test-key"),
+            CollectionArtifacts(
+                posts=(_build_post("post_001", subreddit="Codex"),),
+                comments=(),
+                raw_posts_path=tmp_path / "data" / "raw" / "posts" / "2026-03-12.json",
+                raw_comments_path=tmp_path / "data" / "raw" / "comments" / "2026-03-12.json",
+            ),
+            AnalysisArtifacts(
+                insights=(_build_insight("post_001"),),
+                insights_path=tmp_path / "data" / "processed" / "insights" / "2026-03-12.json",
+                thread_selection=_build_thread_selection(_build_post("post_001", subreddit="Codex")),
+                digest_topics=(
+                    RankedTopic(
+                        topic_key="topic_1",
+                        title="Topic One",
+                        executive_summary="Summary",
+                        relevance_for_user="Relevance",
+                        source_title="Codex thread",
+                        source_url="https://reddit.com/r/Codex/comments/post_001",
+                        source_subreddit="Codex",
+                        impact_score=1.4,
+                        support_count=1,
+                    ),
+                ),
+            ),
+        )
+
+
 def test_render_stage_returns_digest_and_optional_llm_variant(tmp_path: Path) -> None:
     digest = DigestArtifact(
         run_date="2026-03-12",
@@ -265,6 +321,7 @@ def test_render_stage_returns_digest_and_optional_llm_variant(tmp_path: Path) ->
     assert result.llm_markdown is not None
     assert result.llm_markdown.daily_path.name == "2026-03-12.llm.md"
     assert calls[0]["warnings"] == ("warning",)
+    assert calls[0]["digest"] == digest
     assert calls[1]["executive_summary_rewrite"] == "Three workflow-specific topics stand out across Codex today."
     assert calls[1]["variant_suffix"] == "llm"
 
@@ -282,7 +339,7 @@ def test_delivery_stage_handles_optional_exports_and_teams_publish(tmp_path: Pat
         logger=SimpleNamespace(warning=lambda *_args, **_kwargs: None),
         retry_call=lambda func, **_kwargs: func(),
         sheets_exporter_factory=lambda _runtime: FakeExporter(),
-        publish_digest_to_teams=lambda url, **kwargs: published.update({"url": url, **kwargs}),
+        publish_digest_to_teams=lambda url, payload: published.update({"url": url, "payload": payload}),
     )
 
     post = _build_post("post_001", subreddit="Codex")
@@ -363,8 +420,9 @@ def test_delivery_stage_handles_optional_exports_and_teams_publish(tmp_path: Pat
     assert result == DeliveryArtifacts(sheets_exported=True, teams_published=True, teams_error=None)
     assert exported["posts"] == (post,)
     assert published["url"] == "https://contoso.example/webhook"
-    assert published["selected_report_variant"] == "LLM-enhanced"
-    assert published["preferred_executive_summary"] is None
+    assert isinstance(published["payload"], TeamsDigestPayload)
+    assert published["payload"].selected_report_variant == "LLM-enhanced"
+    assert published["payload"].preferred_executive_summary is None
 
 
 def test_state_stage_writes_run_state_from_stage_artifacts(tmp_path: Path) -> None:
