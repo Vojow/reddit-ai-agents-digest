@@ -12,9 +12,17 @@ def write_text(path: Path, content: str) -> None:
     path.write_text(content)
 
 
-def test_load_config_from_repo_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_config_from_repo_defaults(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("INCLUDE_SECONDARY_SUBREDDITS", raising=False)
-    config = load_config(Path.cwd())
+    write_text(
+        tmp_path / "config" / "subreddits.yaml",
+        (Path.cwd() / "config" / "subreddits.yaml").read_text(),
+    )
+    write_text(
+        tmp_path / "config" / "scoring.yaml",
+        (Path.cwd() / "config" / "scoring.yaml").read_text(),
+    )
+    config = load_config(tmp_path)
 
     assert config.subreddits.primary == ("Codex", "ClaudeCode", "Vibecoding")
     assert config.subreddits.enabled_subreddits == ("Codex", "ClaudeCode", "Vibecoding")
@@ -61,6 +69,164 @@ tags:
     assert config.subreddits.enabled_subreddits == ("Codex", "LocalLLaMA")
     assert config.subreddits.fetch.lookback_hours == 12
     assert config.runtime.openai_model == "gpt-5"
+
+
+def test_load_config_reads_runtime_values_from_dotenv(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    write_text(
+        tmp_path / "config" / "subreddits.yaml",
+        """
+primary:
+  - Codex
+mvp_enabled:
+  include_secondary: false
+fetch:
+  lookback_hours: 24
+  sort_modes: [new]
+  min_post_score: 5
+  min_comments: 3
+  max_posts_per_subreddit: 25
+  max_comments_per_post: 50
+""".strip(),
+    )
+    write_text(
+        tmp_path / "config" / "scoring.yaml",
+        """
+weights:
+  relevance: 0.5
+tags:
+  - ai-agents
+""".strip(),
+    )
+    write_text(
+        tmp_path / ".env",
+        """
+REDDIT_USER_AGENT=reddit-ai-agents-digest/0.1.0
+OPENAI_MODEL="gpt-5"
+LOOKBACK_HOURS=12
+""".strip(),
+    )
+    monkeypatch.delenv("REDDIT_USER_AGENT", raising=False)
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    monkeypatch.delenv("LOOKBACK_HOURS", raising=False)
+
+    config = load_config(tmp_path, require_reddit=True)
+
+    assert config.runtime.reddit_user_agent == "reddit-ai-agents-digest/0.1.0"
+    assert config.runtime.openai_model == "gpt-5"
+    assert config.subreddits.fetch.lookback_hours == 12
+
+
+def test_exported_environment_overrides_dotenv(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    write_text(
+        tmp_path / "config" / "subreddits.yaml",
+        """
+primary:
+  - Codex
+mvp_enabled:
+  include_secondary: false
+fetch:
+  lookback_hours: 24
+  sort_modes: [new]
+  min_post_score: 5
+  min_comments: 3
+  max_posts_per_subreddit: 25
+  max_comments_per_post: 50
+""".strip(),
+    )
+    write_text(
+        tmp_path / "config" / "scoring.yaml",
+        """
+weights:
+  relevance: 0.5
+tags:
+  - ai-agents
+""".strip(),
+    )
+    write_text(
+        tmp_path / ".env",
+        """
+REDDIT_USER_AGENT=from-dotenv
+OPENAI_MODEL=gpt-5-mini
+""".strip(),
+    )
+    monkeypatch.setenv("REDDIT_USER_AGENT", "from-shell")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5")
+
+    config = load_config(tmp_path, require_reddit=True)
+
+    assert config.runtime.reddit_user_agent == "from-shell"
+    assert config.runtime.openai_model == "gpt-5"
+
+
+def test_invalid_dotenv_line_fails_with_clear_message(tmp_path: Path) -> None:
+    write_text(
+        tmp_path / "config" / "subreddits.yaml",
+        """
+primary:
+  - Codex
+mvp_enabled:
+  include_secondary: false
+fetch:
+  lookback_hours: 24
+  sort_modes: [new]
+  min_post_score: 5
+  min_comments: 3
+  max_posts_per_subreddit: 25
+  max_comments_per_post: 50
+""".strip(),
+    )
+    write_text(
+        tmp_path / "config" / "scoring.yaml",
+        """
+weights:
+  relevance: 0.5
+tags:
+  - ai-agents
+""".strip(),
+    )
+    write_text(tmp_path / ".env", "NOT A VALID LINE")
+
+    with pytest.raises(ConfigError, match="expected KEY=VALUE"):
+        load_config(tmp_path)
+
+
+def test_load_config_keeps_dotenv_values_scoped_to_base_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    for repo_name, user_agent in (("repo-one", "agent-one"), ("repo-two", "agent-two")):
+        repo_root = tmp_path / repo_name
+        write_text(
+            repo_root / "config" / "subreddits.yaml",
+            """
+primary:
+  - Codex
+mvp_enabled:
+  include_secondary: false
+fetch:
+  lookback_hours: 24
+  sort_modes: [new]
+  min_post_score: 5
+  min_comments: 3
+  max_posts_per_subreddit: 25
+  max_comments_per_post: 50
+""".strip(),
+        )
+        write_text(
+            repo_root / "config" / "scoring.yaml",
+            """
+weights:
+  relevance: 0.5
+tags:
+  - ai-agents
+""".strip(),
+        )
+        write_text(repo_root / ".env", f"REDDIT_USER_AGENT={user_agent}")
+
+    monkeypatch.delenv("REDDIT_USER_AGENT", raising=False)
+
+    first = load_config(tmp_path / "repo-one", require_reddit=True)
+    second = load_config(tmp_path / "repo-two", require_reddit=True)
+
+    assert first.runtime.reddit_user_agent == "agent-one"
+    assert second.runtime.reddit_user_agent == "agent-two"
 
 
 def test_invalid_yaml_fails_with_clear_message(tmp_path: Path) -> None:
