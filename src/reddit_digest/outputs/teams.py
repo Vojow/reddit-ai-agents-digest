@@ -132,7 +132,7 @@ def _build_topic_facts(topics: tuple[TeamsTopicSummary, ...]) -> list[dict[str, 
             "name": f"{index}. {topic.title}",
             "value": f"r/{topic.subreddit} · impact {topic.impact_score:.2f} · {topic.source_url}",
         }
-        for index, topic in enumerate(topics[:3], start=1)
+        for index, topic in enumerate(topics, start=1)
     ]
 
 
