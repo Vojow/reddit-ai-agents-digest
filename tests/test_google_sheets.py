@@ -14,12 +14,12 @@ from reddit_digest.config import load_scoring_config
 from reddit_digest.extractors.service import extract_insights
 from reddit_digest.models.comment import Comment
 from reddit_digest.models.post import Post
+from reddit_digest.outputs.digest import build_digest_artifact
 from reddit_digest.outputs.google_sheets import DAILY_DIGEST_TAB
 from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
 from reddit_digest.outputs.google_sheets import INSIGHTS_TAB
 from reddit_digest.outputs.google_sheets import RAW_POSTS_TAB
 from reddit_digest.outputs.google_sheets import load_google_sheets_credentials
-from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.ranking.novelty import apply_novelty
 from reddit_digest.ranking.threads import select_threads
 
@@ -94,15 +94,14 @@ def build_inputs(sample_posts_payload: list[dict[str, object]], sample_comments_
         run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
         lookback_hours=24,
     )
-    markdown = render_markdown_digest(
+    digest = build_digest_artifact(
         run_date="2026-03-12",
         insights=novelty.insights,
         scoring=scoring,
         thread_selection=thread_selection,
-        reports_root=tmp_path / "reports",
         watch_next=("Monitor prompt-state snapshots",),
     )
-    return posts, novelty.insights, scoring, markdown.content
+    return posts, novelty.insights, scoring, digest
 
 
 def build_runtime(**overrides: object) -> RuntimeConfig:
@@ -128,13 +127,13 @@ def test_google_sheets_export_creates_expected_tabs(
 ) -> None:
     workbook = FakeWorkbook()
     exporter = GoogleSheetsExporter(workbook)
-    posts, insights, scoring, markdown_content = build_inputs(sample_posts_payload, sample_comments_payload, tmp_path)
+    posts, insights, scoring, digest = build_inputs(sample_posts_payload, sample_comments_payload, tmp_path)
 
     counts = exporter.export(
         run_date="2026-03-12",
         posts=posts,
         insights=insights,
-        markdown_content=markdown_content,
+        digest=digest,
         scoring=scoring,
         lookback_hours=24,
         run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
@@ -154,13 +153,13 @@ def test_google_sheets_export_is_idempotent_for_same_run_date(
 ) -> None:
     workbook = FakeWorkbook()
     exporter = GoogleSheetsExporter(workbook)
-    posts, insights, scoring, markdown_content = build_inputs(sample_posts_payload, sample_comments_payload, tmp_path)
+    posts, insights, scoring, digest = build_inputs(sample_posts_payload, sample_comments_payload, tmp_path)
 
     exporter.export(
         run_date="2026-03-12",
         posts=posts,
         insights=insights,
-        markdown_content=markdown_content,
+        digest=digest,
         scoring=scoring,
         lookback_hours=24,
         run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
@@ -169,7 +168,7 @@ def test_google_sheets_export_is_idempotent_for_same_run_date(
         run_date="2026-03-12",
         posts=posts,
         insights=insights,
-        markdown_content=markdown_content,
+        digest=digest,
         scoring=scoring,
         lookback_hours=24,
         run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
@@ -182,6 +181,70 @@ def test_google_sheets_export_is_idempotent_for_same_run_date(
     assert len(raw_rows) == len(posts)
     assert len(insight_rows) == len(insights)
     assert len(digest_rows) == 1
+
+
+def test_google_sheets_daily_digest_uses_structured_top_thread_not_collection_order(tmp_path: Path) -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    posts = (
+        Post.from_raw(
+            {
+                "id": "low",
+                "subreddit": "Codex",
+                "title": "Lower ranked first in collection order",
+                "author": "tester",
+                "score": 8,
+                "num_comments": 2,
+                "created_utc": 1_773_316_800,
+                "url": "https://reddit.com/r/Codex/comments/low",
+                "permalink": "/r/Codex/comments/low",
+                "selftext": "basic update",
+            }
+        ),
+        Post.from_raw(
+            {
+                "id": "high",
+                "subreddit": "ClaudeCode",
+                "title": "Higher ranked thread should win",
+                "author": "tester",
+                "score": 120,
+                "num_comments": 30,
+                "created_utc": 1_773_316_810,
+                "url": "https://reddit.com/r/ClaudeCode/comments/high",
+                "permalink": "/r/ClaudeCode/comments/high",
+                "selftext": "workflow deterministic testing prompt",
+            }
+        ),
+    )
+    insights = ()
+    thread_selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex", "ClaudeCode"),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+        lookback_hours=24,
+    )
+    digest = build_digest_artifact(
+        run_date="2026-03-12",
+        insights=insights,
+        scoring=scoring,
+        thread_selection=thread_selection,
+        watch_next=("Monitor ranked thread selection",),
+    )
+    workbook = FakeWorkbook()
+
+    GoogleSheetsExporter(workbook).export(
+        run_date="2026-03-12",
+        posts=posts,
+        insights=insights,
+        digest=digest,
+        scoring=scoring,
+        lookback_hours=24,
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+    )
+
+    row = workbook.worksheet(DAILY_DIGEST_TAB).get_all_records()[0]
+    assert row["top_thread_title"] == "Higher ranked thread should win"
+    assert row["watch_next"] == "Monitor ranked thread selection"
 
 
 def test_load_google_sheets_credentials_prefers_service_account_json(monkeypatch: pytest.MonkeyPatch) -> None:

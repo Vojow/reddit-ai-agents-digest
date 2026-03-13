@@ -21,6 +21,7 @@ from reddit_digest.extractors.openai_suggestions import generate_suggestions
 from reddit_digest.extractors.openai_suggestions import generate_topic_rewrites
 from reddit_digest.extractors.service import extract_insights
 from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
+from reddit_digest.outputs.digest import build_digest_artifact
 from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.outputs.markdown import select_digest_topics
 from reddit_digest.ranking.novelty import apply_novelty
@@ -155,6 +156,14 @@ class PipelineRunner:
                         item.topic_key: (item.executive_summary, item.relevance_for_user)
                         for item in rewrite_result.rewrites
                     }
+        digest = build_digest_artifact(
+            run_date=run_date,
+            insights=novelty.insights,
+            scoring=config.scoring,
+            thread_selection=thread_selection,
+            watch_next=suggestions,
+            topics=digest_topics,
+        )
         markdown = render_markdown_digest(
             run_date=run_date,
             insights=novelty.insights,
@@ -163,7 +172,7 @@ class PipelineRunner:
             reports_root=self.base_path / "reports",
             watch_next=suggestions,
             warnings=tuple(dict.fromkeys(markdown_warnings)),
-            topics=digest_topics,
+            digest=digest,
         )
         if topic_rewrites:
             render_markdown_digest(
@@ -172,8 +181,7 @@ class PipelineRunner:
                 scoring=config.scoring,
                 thread_selection=thread_selection,
                 reports_root=self.base_path / "reports",
-                watch_next=suggestions,
-                topics=digest_topics,
+                digest=digest,
                 topic_rewrites=topic_rewrites,
                 variant_suffix="llm",
             )
@@ -185,7 +193,7 @@ class PipelineRunner:
                     run_date=run_date,
                     posts=post_result.posts,
                     insights=novelty.insights,
-                    markdown_content=markdown.content,
+                    digest=digest,
                     scoring=config.scoring,
                     lookback_hours=config.subreddits.fetch.lookback_hours,
                     run_at=run_at,
