@@ -112,6 +112,9 @@ When Sheets export is enabled, the exporter rewrites these tabs idempotently by
 
 ## Failure handling
 
+Scenario-based rerun and recovery steps are documented in
+[`docs/rerun-runbook.md`](rerun-runbook.md).
+
 - Networked stages retry up to three times.
 - Same-day reruns overwrite file outputs deterministically.
 - The deterministic markdown remains the source-of-record output for each run.
