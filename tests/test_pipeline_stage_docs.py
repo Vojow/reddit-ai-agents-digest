@@ -11,6 +11,7 @@ def test_pipeline_stage_contracts_are_documented_and_linked() -> None:
     assert "docs/pipeline-stages.md" in readme
     assert "docs/pipeline-stages.md" in architecture
     assert "PipelineServices" in document
+    assert "stage-scoped service groups" in document
     assert "run_collection_stage()" in document
     assert "run_analysis_stage()" in document
     assert "run_openai_stage()" in document

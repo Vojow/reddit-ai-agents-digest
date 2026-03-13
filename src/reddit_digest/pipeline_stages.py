@@ -193,52 +193,87 @@ class DeliveryArtifacts:
 
 
 @dataclass(frozen=True)
-class PipelineServices:
+class CollectionStageServices:
     logger: logging.Logger
     retry_call: RetryCall
     post_source_factory: PostSourceFactory
     comment_source_factory: CommentSourceFactory
     post_collector_factory: PostCollectorFactory
     comment_collector_factory: CommentCollectorFactory
+
+
+@dataclass(frozen=True)
+class AnalysisStageServices:
     extract_insights: ExtractInsightsFunc
     apply_novelty: ApplyNoveltyFunc
     select_threads: SelectThreadsFunc
     select_digest_topics: SelectDigestTopicsFunc
+
+
+@dataclass(frozen=True)
+class OpenAIStageServices:
+    logger: logging.Logger
+    retry_call: RetryCall
     build_openai_client: BuildOpenAIClientFunc
     generate_suggestions: GenerateSuggestionsFunc
     generate_topic_rewrites: GenerateTopicRewritesFunc
     generate_executive_summary_rewrite: GenerateExecutiveSummaryRewriteFunc
     build_suggestion_warning: WarningBuilder
     build_rewrite_warning: WarningBuilder
+
+
+@dataclass(frozen=True)
+class RenderStageServices:
     build_digest_artifact: BuildDigestArtifactFunc
     render_markdown_digest: RenderMarkdownDigestFunc
+
+
+@dataclass(frozen=True)
+class DeliveryStageServices:
+    logger: logging.Logger
+    retry_call: RetryCall
     sheets_exporter_factory: SheetsExporterFactory
     publish_digest_to_teams: PublishTeamsDigestFunc
+
+
+@dataclass(frozen=True)
+class StateStageServices:
     write_run_state: WriteRunStateFunc
 
 
+@dataclass(frozen=True)
+class PipelineServices:
+    collection: CollectionStageServices
+    analysis: AnalysisStageServices
+    openai: OpenAIStageServices
+    render: RenderStageServices
+    delivery: DeliveryStageServices
+    state: StateStageServices
+
+
 def run_collection_stage(context: PipelineRunContext, services: PipelineServices) -> CollectionArtifacts:
+    stage = services.collection
     raw_root = context.base_path / "data" / "raw"
     processed_root = context.base_path / "data" / "processed"
-    post_source = services.post_source_factory(context.config.runtime)
-    comment_source = services.comment_source_factory(context.config.runtime)
+    post_source = stage.post_source_factory(context.config.runtime)
+    comment_source = stage.comment_source_factory(context.config.runtime)
 
-    post_result = services.retry_call(
-        lambda: services.post_collector_factory(post_source, raw_root, processed_root).collect(
+    post_result = stage.retry_call(
+        lambda: stage.post_collector_factory(post_source, raw_root, processed_root).collect(
             context.config.subreddits,
             run_at=context.run_at,
         ),
         operation="collect_posts",
-        logger=services.logger,
+        logger=stage.logger,
     )
-    comment_result = services.retry_call(
-        lambda: services.comment_collector_factory(comment_source, raw_root, processed_root).collect(
+    comment_result = stage.retry_call(
+        lambda: stage.comment_collector_factory(comment_source, raw_root, processed_root).collect(
             post_result.posts,
             max_comments_per_post=context.config.subreddits.fetch.max_comments_per_post,
             run_at=context.run_at,
         ),
         operation="collect_comments",
-        logger=services.logger,
+        logger=stage.logger,
     )
     return CollectionArtifacts(
         posts=post_result.posts,
@@ -253,22 +288,23 @@ def run_analysis_stage(
     collection: CollectionArtifacts,
     services: PipelineServices,
 ) -> AnalysisArtifacts:
+    stage = services.analysis
     processed_root = context.base_path / "data" / "processed"
-    extracted = services.extract_insights(
+    extracted = stage.extract_insights(
         collection.posts,
         collection.comments,
         processed_root=processed_root,
         run_date=context.run_date,
     )
-    novelty = services.apply_novelty(processed_root, run_date=context.run_date, insights=extracted.insights)
-    thread_selection = services.select_threads(
+    novelty = stage.apply_novelty(processed_root, run_date=context.run_date, insights=extracted.insights)
+    thread_selection = stage.select_threads(
         collection.posts,
         scoring=context.config.scoring,
         enabled_subreddits=context.config.subreddits.enabled_subreddits,
         run_at=context.run_at,
         lookback_hours=context.config.subreddits.fetch.lookback_hours,
     )
-    digest_topics = services.select_digest_topics(
+    digest_topics = stage.select_digest_topics(
         insights=novelty.insights,
         scoring=context.config.scoring,
         thread_selection=thread_selection,
@@ -287,6 +323,7 @@ def run_openai_stage(
     analysis: AnalysisArtifacts,
     services: PipelineServices,
 ) -> OpenAIArtifacts:
+    stage = services.openai
     if not context.config.runtime.openai_api_key:
         return OpenAIArtifacts(
             watch_next=(),
@@ -296,7 +333,7 @@ def run_openai_stage(
             usage=OpenAIUsageSummary.empty(),
         )
 
-    openai_client = services.build_openai_client(context.config.runtime)
+    openai_client = stage.build_openai_client(context.config.runtime)
     processed_root = context.base_path / "data" / "processed"
     watch_next: tuple[str, ...] = ()
     topic_rewrites: dict[str, tuple[str, str]] = {}
@@ -305,8 +342,8 @@ def run_openai_stage(
     skip_topic_rewrites = False
 
     try:
-        suggestion_result = services.retry_call(
-            lambda: services.generate_suggestions(
+        suggestion_result = stage.retry_call(
+            lambda: stage.generate_suggestions(
                 openai_client,
                 model=context.config.runtime.openai_model,
                 posts=collection.posts,
@@ -315,11 +352,11 @@ def run_openai_stage(
                 run_date=context.run_date,
             ),
             operation="generate_openai_suggestions",
-            logger=services.logger,
+            logger=stage.logger,
         )
     except Exception as exc:
-        services.logger.warning("Skipping OpenAI suggestions for %s after failure", context.run_date, exc_info=True)
-        quota_warning = services.build_suggestion_warning(exc)
+        stage.logger.warning("Skipping OpenAI suggestions for %s after failure", context.run_date, exc_info=True)
+        quota_warning = stage.build_suggestion_warning(exc)
         if quota_warning is not None:
             markdown_warnings.append(quota_warning)
             skip_topic_rewrites = True
@@ -331,8 +368,8 @@ def run_openai_stage(
     if analysis.digest_topics and not skip_topic_rewrites:
         rewrite_requests = _build_topic_rewrite_requests(analysis.digest_topics)
         try:
-            rewrite_result = services.retry_call(
-                lambda: services.generate_topic_rewrites(
+            rewrite_result = stage.retry_call(
+                lambda: stage.generate_topic_rewrites(
                     openai_client,
                     model=context.config.runtime.openai_model,
                     requests=rewrite_requests,
@@ -340,15 +377,15 @@ def run_openai_stage(
                     run_date=context.run_date,
                 ),
                 operation="rewrite_openai_topics",
-                logger=services.logger,
+                logger=stage.logger,
             )
         except Exception as exc:
-            services.logger.warning(
+            stage.logger.warning(
                 "Skipping LLM markdown variant for %s after topic rewrite failure",
                 context.run_date,
                 exc_info=True,
             )
-            quota_warning = services.build_rewrite_warning(exc)
+            quota_warning = stage.build_rewrite_warning(exc)
             if quota_warning is not None:
                 markdown_warnings.append(quota_warning)
         else:
@@ -362,8 +399,8 @@ def run_openai_stage(
                     analysis=analysis,
                     topic_requests=rewrite_requests,
                 )
-                executive_summary_result = services.retry_call(
-                    lambda: services.generate_executive_summary_rewrite(
+                executive_summary_result = stage.retry_call(
+                    lambda: stage.generate_executive_summary_rewrite(
                         openai_client,
                         model=context.config.runtime.openai_model,
                         request=summary_request,
@@ -371,15 +408,15 @@ def run_openai_stage(
                         run_date=context.run_date,
                     ),
                     operation="rewrite_openai_executive_summary",
-                    logger=services.logger,
+                    logger=stage.logger,
                 )
             except Exception as exc:
-                services.logger.warning(
+                stage.logger.warning(
                     "Skipping LLM executive summary rewrite for %s after failure",
                     context.run_date,
                     exc_info=True,
                 )
-                quota_warning = services.build_rewrite_warning(exc)
+                quota_warning = stage.build_rewrite_warning(exc)
                 if quota_warning is not None:
                     markdown_warnings.append(quota_warning)
                 else:
@@ -402,7 +439,8 @@ def run_render_stage(
     openai: OpenAIArtifacts,
     services: PipelineServices,
 ) -> RenderArtifacts:
-    digest = services.build_digest_artifact(
+    stage = services.render
+    digest = stage.build_digest_artifact(
         run_date=context.run_date,
         insights=analysis.insights,
         scoring=context.config.scoring,
@@ -410,14 +448,14 @@ def run_render_stage(
         watch_next=openai.watch_next,
         topics=analysis.digest_topics,
     )
-    markdown = services.render_markdown_digest(
+    markdown = stage.render_markdown_digest(
         digest=digest,
         reports_root=context.base_path / "reports",
         warnings=openai.warnings,
     )
     llm_markdown = None
     if openai.topic_rewrites or openai.executive_summary_rewrite:
-        llm_markdown = services.render_markdown_digest(
+        llm_markdown = stage.render_markdown_digest(
             digest=digest,
             reports_root=context.base_path / "reports",
             topic_rewrites=openai.topic_rewrites,
@@ -435,10 +473,11 @@ def run_delivery_stage(
     rendered: RenderArtifacts,
     services: PipelineServices,
 ) -> DeliveryArtifacts:
+    stage = services.delivery
     sheets_exported = False
     if not context.skip_sheets:
-        services.retry_call(
-            lambda: services.sheets_exporter_factory(context.config.runtime).export(
+        stage.retry_call(
+            lambda: stage.sheets_exporter_factory(context.config.runtime).export(
                 run_date=context.run_date,
                 posts=collection.posts,
                 insights=analysis.insights,
@@ -448,7 +487,7 @@ def run_delivery_stage(
                 run_at=context.run_at,
             ),
             operation="export_google_sheets",
-            logger=services.logger,
+            logger=stage.logger,
         )
         sheets_exported = True
 
@@ -479,17 +518,17 @@ def run_delivery_stage(
             ),
         )
         try:
-            services.retry_call(
-                lambda: services.publish_digest_to_teams(
+            stage.retry_call(
+                lambda: stage.publish_digest_to_teams(
                     context.config.runtime.teams_webhook_url,
                     teams_payload,
                 ),
                 operation="publish_teams_digest",
-                logger=services.logger,
+                logger=stage.logger,
             )
         except Exception as exc:
             teams_error = str(exc)
-            services.logger.warning("Skipping Teams webhook publish for %s after failure", context.run_date, exc_info=True)
+            stage.logger.warning("Skipping Teams webhook publish for %s after failure", context.run_date, exc_info=True)
         else:
             teams_published = True
 
@@ -509,6 +548,7 @@ def run_state_stage(
     openai: OpenAIArtifacts,
     services: PipelineServices,
 ) -> RunState:
+    stage = services.state
     state = RunState(
         run_date=context.run_date,
         completed_at=datetime.now(tz=UTC).isoformat(),
@@ -521,7 +561,7 @@ def run_state_stage(
         teams_error=delivery.teams_error,
         openai_usage=openai.usage,
     )
-    services.write_run_state(context.base_path / "data" / "state", state)
+    stage.write_run_state(context.base_path / "data" / "state", state)
     return state
 
 

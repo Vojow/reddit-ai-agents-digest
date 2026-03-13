@@ -7,7 +7,7 @@ This is the contract reference for where behavior belongs in the pipeline.
 - Responsibility: load runtime config and compose concrete stage dependencies.
 - Entry point: `src/reddit_digest/pipeline.py`
 - Inputs: repo root, environment variables, YAML config, CLI flags
-- Outputs: a `PipelineRunContext` plus a typed `PipelineServices` bundle
+- Outputs: a `PipelineRunContext` plus a typed `PipelineServices` bundle composed of stage-scoped service groups
 - Status: deterministic
 - Failure behavior: missing required config fails the run before collection starts
 - Extension guidance: add new runtime dependencies at the composition boundary instead of constructing them inside downstream stage logic

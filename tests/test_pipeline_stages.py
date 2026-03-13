@@ -22,12 +22,18 @@ from reddit_digest.outputs.digest import RankedTopic
 from reddit_digest.outputs.markdown import MarkdownDigestResult
 from reddit_digest.outputs.teams import TeamsDigestPayload
 from reddit_digest.pipeline_stages import AnalysisArtifacts
+from reddit_digest.pipeline_stages import AnalysisStageServices
+from reddit_digest.pipeline_stages import CollectionStageServices
 from reddit_digest.pipeline_stages import CollectionArtifacts
+from reddit_digest.pipeline_stages import DeliveryStageServices
 from reddit_digest.pipeline_stages import DeliveryArtifacts
 from reddit_digest.pipeline_stages import OpenAIArtifacts
+from reddit_digest.pipeline_stages import OpenAIStageServices
 from reddit_digest.pipeline_stages import PipelineRunContext
 from reddit_digest.pipeline_stages import PipelineServices
+from reddit_digest.pipeline_stages import RenderStageServices
 from reddit_digest.pipeline_stages import RenderArtifacts
+from reddit_digest.pipeline_stages import StateStageServices
 from reddit_digest.pipeline_stages import run_analysis_stage
 from reddit_digest.pipeline_stages import run_collection_stage
 from reddit_digest.pipeline_stages import run_delivery_stage
@@ -539,7 +545,45 @@ def _build_services(**overrides: object) -> PipelineServices:
         "write_run_state": lambda *_args, **_kwargs: None,
     }
     defaults.update(overrides)
-    return PipelineServices(**defaults)
+    return PipelineServices(
+        collection=CollectionStageServices(
+            logger=defaults["logger"],
+            retry_call=defaults["retry_call"],
+            post_source_factory=defaults["post_source_factory"],
+            comment_source_factory=defaults["comment_source_factory"],
+            post_collector_factory=defaults["post_collector_factory"],
+            comment_collector_factory=defaults["comment_collector_factory"],
+        ),
+        analysis=AnalysisStageServices(
+            extract_insights=defaults["extract_insights"],
+            apply_novelty=defaults["apply_novelty"],
+            select_threads=defaults["select_threads"],
+            select_digest_topics=defaults["select_digest_topics"],
+        ),
+        openai=OpenAIStageServices(
+            logger=defaults["logger"],
+            retry_call=defaults["retry_call"],
+            build_openai_client=defaults["build_openai_client"],
+            generate_suggestions=defaults["generate_suggestions"],
+            generate_topic_rewrites=defaults["generate_topic_rewrites"],
+            generate_executive_summary_rewrite=defaults["generate_executive_summary_rewrite"],
+            build_suggestion_warning=defaults["build_suggestion_warning"],
+            build_rewrite_warning=defaults["build_rewrite_warning"],
+        ),
+        render=RenderStageServices(
+            build_digest_artifact=defaults["build_digest_artifact"],
+            render_markdown_digest=defaults["render_markdown_digest"],
+        ),
+        delivery=DeliveryStageServices(
+            logger=defaults["logger"],
+            retry_call=defaults["retry_call"],
+            sheets_exporter_factory=defaults["sheets_exporter_factory"],
+            publish_digest_to_teams=defaults["publish_digest_to_teams"],
+        ),
+        state=StateStageServices(
+            write_run_state=defaults["write_run_state"],
+        ),
+    )
 
 
 def _build_context(

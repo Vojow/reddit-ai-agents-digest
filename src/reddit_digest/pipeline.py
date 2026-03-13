@@ -25,8 +25,14 @@ from reddit_digest.outputs.digest import select_digest_topics
 from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
 from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.outputs.teams import publish_digest_to_teams
+from reddit_digest.pipeline_stages import AnalysisStageServices
+from reddit_digest.pipeline_stages import CollectionStageServices
+from reddit_digest.pipeline_stages import DeliveryStageServices
+from reddit_digest.pipeline_stages import OpenAIStageServices
 from reddit_digest.pipeline_stages import PipelineRunContext
 from reddit_digest.pipeline_stages import PipelineServices
+from reddit_digest.pipeline_stages import RenderStageServices
+from reddit_digest.pipeline_stages import StateStageServices
 from reddit_digest.pipeline_stages import run_analysis_stage
 from reddit_digest.pipeline_stages import run_collection_stage
 from reddit_digest.pipeline_stages import run_delivery_stage
@@ -75,33 +81,49 @@ class PipelineRunner:
 
 def _compose_services() -> PipelineServices:
     return PipelineServices(
-        logger=LOGGER,
-        retry_call=retry_call,
-        post_source_factory=PublicRedditPostSource,
-        comment_source_factory=PublicRedditCommentSource,
-        post_collector_factory=PostCollector,
-        comment_collector_factory=CommentCollector,
-        extract_insights=extract_insights,
-        apply_novelty=apply_novelty,
-        select_threads=select_threads,
-        select_digest_topics=select_digest_topics,
-        build_openai_client=build_openai_client,
-        generate_suggestions=generate_suggestions,
-        generate_topic_rewrites=generate_topic_rewrites,
-        generate_executive_summary_rewrite=generate_executive_summary_rewrite,
-        build_suggestion_warning=lambda exc: _build_openai_warning(
-            exc,
-            skipped_steps="Watch Next suggestions, LLM topic rewrites, and LLM executive summary rewrites",
+        collection=CollectionStageServices(
+            logger=LOGGER,
+            retry_call=retry_call,
+            post_source_factory=PublicRedditPostSource,
+            comment_source_factory=PublicRedditCommentSource,
+            post_collector_factory=PostCollector,
+            comment_collector_factory=CommentCollector,
         ),
-        build_rewrite_warning=lambda exc: _build_openai_warning(
-            exc,
-            skipped_steps="LLM topic rewrites and LLM executive summary rewrites",
+        analysis=AnalysisStageServices(
+            extract_insights=extract_insights,
+            apply_novelty=apply_novelty,
+            select_threads=select_threads,
+            select_digest_topics=select_digest_topics,
         ),
-        build_digest_artifact=build_digest_artifact,
-        render_markdown_digest=render_markdown_digest,
-        sheets_exporter_factory=GoogleSheetsExporter.from_runtime,
-        publish_digest_to_teams=publish_digest_to_teams,
-        write_run_state=write_run_state,
+        openai=OpenAIStageServices(
+            logger=LOGGER,
+            retry_call=retry_call,
+            build_openai_client=build_openai_client,
+            generate_suggestions=generate_suggestions,
+            generate_topic_rewrites=generate_topic_rewrites,
+            generate_executive_summary_rewrite=generate_executive_summary_rewrite,
+            build_suggestion_warning=lambda exc: _build_openai_warning(
+                exc,
+                skipped_steps="Watch Next suggestions, LLM topic rewrites, and LLM executive summary rewrites",
+            ),
+            build_rewrite_warning=lambda exc: _build_openai_warning(
+                exc,
+                skipped_steps="LLM topic rewrites and LLM executive summary rewrites",
+            ),
+        ),
+        render=RenderStageServices(
+            build_digest_artifact=build_digest_artifact,
+            render_markdown_digest=render_markdown_digest,
+        ),
+        delivery=DeliveryStageServices(
+            logger=LOGGER,
+            retry_call=retry_call,
+            sheets_exporter_factory=GoogleSheetsExporter.from_runtime,
+            publish_digest_to_teams=publish_digest_to_teams,
+        ),
+        state=StateStageServices(
+            write_run_state=write_run_state,
+        ),
     )
 
 
