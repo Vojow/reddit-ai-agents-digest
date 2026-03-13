@@ -38,6 +38,7 @@ uv run pytest
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Repo invariants](docs/invariants.md)
 - [Operations](docs/operations.md)
 - [Digest format](docs/digest-format.md)
 - [GCP WIF setup](docs/gcp-wif-setup.md)
@@ -156,3 +157,6 @@ The project uses a `src/` layout and stores:
 
 Run state now also records OpenAI token usage totals plus Teams publish status
 for the completed run.
+
+Before changing pipeline behavior, ranking, or outputs, check the hard behavior
+guarantees in [`docs/invariants.md`](docs/invariants.md).
