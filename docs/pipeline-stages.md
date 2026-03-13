@@ -7,7 +7,7 @@ This is the contract reference for where behavior belongs in the pipeline.
 - Responsibility: load runtime config and compose concrete stage dependencies.
 - Entry point: `src/reddit_digest/pipeline.py`
 - Inputs: repo root, environment variables, YAML config, CLI flags
-- Outputs: a `PipelineRunContext` plus concrete stage objects
+- Outputs: a `PipelineRunContext` plus a typed `PipelineServices` bundle
 - Status: deterministic
 - Failure behavior: missing required config fails the run before collection starts
 - Extension guidance: add new runtime dependencies at the composition boundary instead of constructing them inside downstream stage logic
@@ -15,7 +15,7 @@ This is the contract reference for where behavior belongs in the pipeline.
 ## 2. Collection stage
 
 - Responsibility: collect raw Reddit posts and comments for enabled subreddits
-- Entry point: `CollectionStage` in `src/reddit_digest/pipeline_stages.py`
+- Entry point: `run_collection_stage()` in `src/reddit_digest/pipeline_stages.py`
 - Inputs: `PipelineRunContext`
 - Outputs: raw post/comment paths plus collected posts/comments
 - Status: deterministic for a fixed upstream Reddit response set
@@ -25,7 +25,7 @@ This is the contract reference for where behavior belongs in the pipeline.
 ## 3. Analysis stage
 
 - Responsibility: extract insights, apply novelty classification, rank threads, and select picked topics
-- Entry point: `AnalysisStage` in `src/reddit_digest/pipeline_stages.py`
+- Entry point: `run_analysis_stage()` in `src/reddit_digest/pipeline_stages.py`
 - Inputs: collected posts/comments plus scoring and subreddit config
 - Outputs: processed insights path, novelty-tagged insights, ranked thread selection, picked topics
 - Status: deterministic
@@ -38,7 +38,7 @@ This is the contract reference for where behavior belongs in the pipeline.
 ## 4. OpenAI advisory stage
 
 - Responsibility: generate `Watch Next` suggestions plus optional executive-summary and topic-prose rewrites
-- Entry point: `OpenAIStage` in `src/reddit_digest/pipeline_stages.py`
+- Entry point: `run_openai_stage()` in `src/reddit_digest/pipeline_stages.py`
 - Inputs: collected posts, analyzed insights, picked topics, OpenAI runtime config
 - Outputs: advisory watch-next strings, optional topic rewrites, optional executive summary rewrite, warning text, OpenAI usage summary
 - Status: advisory
@@ -50,7 +50,7 @@ This is the contract reference for where behavior belongs in the pipeline.
 ## 5. Render stage
 
 - Responsibility: build the structured digest artifact and write markdown outputs
-- Entry point: `RenderStage` in `src/reddit_digest/pipeline_stages.py`
+- Entry point: `run_render_stage()` in `src/reddit_digest/pipeline_stages.py`
 - Inputs: analyzed insights, picked topics, advisory warnings, advisory rewrites
 - Outputs:
   - structured digest artifact
@@ -63,7 +63,7 @@ This is the contract reference for where behavior belongs in the pipeline.
 ## 6. Delivery stage
 
 - Responsibility: publish optional downstream outputs that depend on completed local artifacts
-- Entry point: `DeliveryStage` in `src/reddit_digest/pipeline_stages.py`
+- Entry point: `run_delivery_stage()` in `src/reddit_digest/pipeline_stages.py`
 - Inputs: collected posts, analyzed insights, structured digest, runtime delivery config, markdown output paths
 - Outputs:
   - Google Sheets upserts
@@ -80,7 +80,7 @@ This is the contract reference for where behavior belongs in the pipeline.
 ## 7. State stage
 
 - Responsibility: persist the completed run state
-- Entry point: `StateStage` in `src/reddit_digest/pipeline_stages.py`
+- Entry point: `run_state_stage()` in `src/reddit_digest/pipeline_stages.py`
 - Inputs: artifact paths plus delivery/advisory status from earlier stages
 - Outputs: `data/state/YYYY-MM-DD.json` and `data/state/latest.json`
 - Status: deterministic

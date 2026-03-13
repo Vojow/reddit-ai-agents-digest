@@ -10,11 +10,12 @@ def test_pipeline_stage_contracts_are_documented_and_linked() -> None:
 
     assert "docs/pipeline-stages.md" in readme
     assert "docs/pipeline-stages.md" in architecture
-    assert "CollectionStage" in document
-    assert "AnalysisStage" in document
-    assert "OpenAIStage" in document
-    assert "RenderStage" in document
-    assert "DeliveryStage" in document
-    assert "StateStage" in document
+    assert "PipelineServices" in document
+    assert "run_collection_stage()" in document
+    assert "run_analysis_stage()" in document
+    assert "run_openai_stage()" in document
+    assert "run_render_stage()" in document
+    assert "run_delivery_stage()" in document
+    assert "run_state_stage()" in document
     assert "deterministic" in document
     assert "advisory" in document

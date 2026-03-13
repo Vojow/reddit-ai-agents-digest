@@ -14,8 +14,8 @@ from reddit_digest.collectors.reddit_comments import PublicRedditCommentSource
 from reddit_digest.collectors.reddit_posts import PostCollector
 from reddit_digest.collectors.reddit_posts import PublicRedditPostSource
 from reddit_digest.config import load_config
-from reddit_digest.extractors.openai_suggestions import generate_suggestions
 from reddit_digest.extractors.openai_suggestions import generate_executive_summary_rewrite
+from reddit_digest.extractors.openai_suggestions import generate_suggestions
 from reddit_digest.extractors.openai_suggestions import generate_topic_rewrites
 from reddit_digest.extractors.service import extract_insights
 from reddit_digest.models.openai_usage import OpenAIUsageSummary
@@ -25,32 +25,22 @@ from reddit_digest.outputs.digest import select_digest_topics
 from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
 from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.outputs.teams import publish_digest_to_teams
+from reddit_digest.pipeline_stages import PipelineRunContext
+from reddit_digest.pipeline_stages import PipelineServices
+from reddit_digest.pipeline_stages import run_analysis_stage
+from reddit_digest.pipeline_stages import run_collection_stage
+from reddit_digest.pipeline_stages import run_delivery_stage
+from reddit_digest.pipeline_stages import run_openai_stage
+from reddit_digest.pipeline_stages import run_render_stage
+from reddit_digest.pipeline_stages import run_state_stage
 from reddit_digest.ranking.novelty import apply_novelty
 from reddit_digest.ranking.threads import select_threads
 from reddit_digest.utils.retries import retry_call
 from reddit_digest.utils.state import RunState
 from reddit_digest.utils.state import write_run_state
 
-from reddit_digest.pipeline_stages import AnalysisStage
-from reddit_digest.pipeline_stages import CollectionStage
-from reddit_digest.pipeline_stages import DeliveryStage
-from reddit_digest.pipeline_stages import OpenAIStage
-from reddit_digest.pipeline_stages import PipelineRunContext
-from reddit_digest.pipeline_stages import RenderStage
-from reddit_digest.pipeline_stages import StateStage
-
 
 LOGGER = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class PipelineStages:
-    collection: CollectionStage
-    analysis: AnalysisStage
-    openai: OpenAIStage
-    render: RenderStage
-    delivery: DeliveryStage
-    state: StateStage
 
 
 @dataclass
@@ -69,71 +59,49 @@ class PipelineRunner:
             run_date=run_date,
             skip_sheets=skip_sheets,
         )
-        stages = _compose_stages(self.base_path)
+        services = _compose_services()
 
-        collection = stages.collection.run(context)
-        analysis = stages.analysis.run(context, collection)
-        openai = stages.openai.run(context, collection, analysis)
-        rendered = stages.render.run(context, analysis, openai)
-        delivery = stages.delivery.run(context, collection, analysis, openai, rendered)
-        state = stages.state.run(context, collection, analysis, rendered, delivery, openai)
+        collection = run_collection_stage(context, services)
+        analysis = run_analysis_stage(context, collection, services)
+        openai = run_openai_stage(context, collection, analysis, services)
+        rendered = run_render_stage(context, analysis, openai, services)
+        delivery = run_delivery_stage(context, collection, analysis, openai, rendered, services)
+        state = run_state_stage(context, collection, analysis, rendered, delivery, openai, services)
 
         _log_openai_usage_summary(openai.usage)
         LOGGER.info("Pipeline completed for %s", run_date)
         return state
 
 
-def _compose_stages(base_path: Path) -> PipelineStages:
-    return PipelineStages(
-        collection=CollectionStage(
-            base_path=base_path,
-            logger=LOGGER,
-            retry_call=retry_call,
-            post_source_factory=PublicRedditPostSource,
-            comment_source_factory=PublicRedditCommentSource,
-            post_collector_factory=PostCollector,
-            comment_collector_factory=CommentCollector,
+def _compose_services() -> PipelineServices:
+    return PipelineServices(
+        logger=LOGGER,
+        retry_call=retry_call,
+        post_source_factory=PublicRedditPostSource,
+        comment_source_factory=PublicRedditCommentSource,
+        post_collector_factory=PostCollector,
+        comment_collector_factory=CommentCollector,
+        extract_insights=extract_insights,
+        apply_novelty=apply_novelty,
+        select_threads=select_threads,
+        select_digest_topics=select_digest_topics,
+        build_openai_client=build_openai_client,
+        generate_suggestions=generate_suggestions,
+        generate_topic_rewrites=generate_topic_rewrites,
+        generate_executive_summary_rewrite=generate_executive_summary_rewrite,
+        build_suggestion_warning=lambda exc: _build_openai_warning(
+            exc,
+            skipped_steps="Watch Next suggestions, LLM topic rewrites, and LLM executive summary rewrites",
         ),
-        analysis=AnalysisStage(
-            base_path=base_path,
-            extract_insights=extract_insights,
-            apply_novelty=apply_novelty,
-            select_threads=select_threads,
-            select_digest_topics=select_digest_topics,
+        build_rewrite_warning=lambda exc: _build_openai_warning(
+            exc,
+            skipped_steps="LLM topic rewrites and LLM executive summary rewrites",
         ),
-        openai=OpenAIStage(
-            base_path=base_path,
-            logger=LOGGER,
-            retry_call=retry_call,
-            build_openai_client=build_openai_client,
-            generate_suggestions=generate_suggestions,
-            generate_topic_rewrites=generate_topic_rewrites,
-            generate_executive_summary_rewrite=generate_executive_summary_rewrite,
-            build_suggestion_warning=lambda exc: _build_openai_warning(
-                exc,
-                skipped_steps="Watch Next suggestions, LLM topic rewrites, and LLM executive summary rewrites",
-            ),
-            build_rewrite_warning=lambda exc: _build_openai_warning(
-                exc,
-                skipped_steps="LLM topic rewrites and LLM executive summary rewrites",
-            ),
-        ),
-        render=RenderStage(
-            base_path=base_path,
-            build_digest_artifact=build_digest_artifact,
-            render_markdown_digest=render_markdown_digest,
-        ),
-        delivery=DeliveryStage(
-            base_path=base_path,
-            logger=LOGGER,
-            retry_call=retry_call,
-            sheets_exporter_factory=GoogleSheetsExporter.from_runtime,
-            publish_digest_to_teams=publish_digest_to_teams,
-        ),
-        state=StateStage(
-            base_path=base_path,
-            write_run_state=write_run_state,
-        ),
+        build_digest_artifact=build_digest_artifact,
+        render_markdown_digest=render_markdown_digest,
+        sheets_exporter_factory=GoogleSheetsExporter.from_runtime,
+        publish_digest_to_teams=publish_digest_to_teams,
+        write_run_state=write_run_state,
     )
 
 
