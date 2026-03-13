@@ -6,6 +6,9 @@
 uv sync --dev
 ```
 
+The CLI auto-loads `.env` from the repository root when config is read.
+Exported environment variables still override values from `.env`.
+
 Required environment variables for local markdown-only runs:
 - `REDDIT_USER_AGENT`
 

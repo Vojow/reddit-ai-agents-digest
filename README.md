@@ -35,8 +35,9 @@ Run tests:
 uv run pytest
 ```
 
-Copy `.env.example` to `.env` for local reference, then export the values in your
-shell or load them with your preferred environment tool before running commands.
+Copy `.env.example` to `.env` for local reference. The CLI now auto-loads
+`<repo>/.env` when it reads config. Exported shell variables still take
+precedence over values from `.env`.
 
 Required environment variables for local markdown-only runs:
 - `REDDIT_USER_AGENT`
