@@ -14,12 +14,14 @@ def test_docs_describe_dual_markdown_outputs() -> None:
     assert "source of record" in readme
     assert "reports/latest.llm.md" in operations
     assert "data/processed/topic_rewrites/YYYY-MM-DD.json" in operations
+    assert "data/processed/executive_summary_rewrites/YYYY-MM-DD.json" in operations
     assert "same selected topics" in operations
     assert "reports/latest.llm.md" in architecture
     assert "does not create same-day Reddit findings or choose topics" in architecture
+    assert "executive summary rewrite" in architecture
     assert "## Picked Topics" in digest_format
     assert "## Emerging Themes" in digest_format
     assert "## Watch Next" in digest_format
     assert "Top Tools Mentioned" not in digest_format
     assert "Optional LLM-enhanced digest" in agents
-    assert "it may only rewrite topic prose" in agents
+    assert "it may only rewrite the top-level executive summary and topic prose" in agents

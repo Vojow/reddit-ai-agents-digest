@@ -67,6 +67,7 @@ class AnalysisArtifacts:
 class OpenAIArtifacts:
     watch_next: tuple[str, ...]
     topic_rewrites: dict[str, tuple[str, str]]
+    executive_summary_rewrite: str | None
     warnings: tuple[str, ...]
     usage: OpenAIUsageSummary
 
@@ -171,6 +172,7 @@ class OpenAIStage:
     build_openai_client: Callable[[object], object]
     generate_suggestions: Callable[..., object]
     generate_topic_rewrites: Callable[..., object]
+    generate_executive_summary_rewrite: Callable[..., object]
     build_suggestion_warning: Callable[[Exception], str | None]
     build_rewrite_warning: Callable[[Exception], str | None]
 
@@ -179,6 +181,7 @@ class OpenAIStage:
             return OpenAIArtifacts(
                 watch_next=(),
                 topic_rewrites={},
+                executive_summary_rewrite=None,
                 warnings=(),
                 usage=OpenAIUsageSummary.empty(),
             )
@@ -187,6 +190,7 @@ class OpenAIStage:
         processed_root = self.base_path / "data" / "processed"
         watch_next: tuple[str, ...] = ()
         topic_rewrites: dict[str, tuple[str, str]] = {}
+        executive_summary_rewrite: str | None = None
         markdown_warnings: list[str] = []
         skip_topic_rewrites = False
 
@@ -254,10 +258,49 @@ class OpenAIStage:
                     item.topic_key: (item.executive_summary, item.relevance_for_user)
                     for item in rewrite_result.rewrites
                 }
+                try:
+                    executive_summary_result = self.retry_call(
+                        lambda: self.generate_executive_summary_rewrite(
+                            openai_client,
+                            model=context.config.runtime.openai_model,
+                            summary_payload={
+                                "run_date": context.run_date,
+                                "total_posts": len(analysis.thread_selection.ranked_posts),
+                                "represented_subreddits": tuple(
+                                    dict.fromkeys(item.post.subreddit for item in analysis.thread_selection.ranked_posts)
+                                ),
+                                "top_topic_title": analysis.digest_topics[0].title if analysis.digest_topics else None,
+                                "topics": tuple(
+                                    {
+                                        "title": topic.title,
+                                        "executive_summary": topic.executive_summary,
+                                        "relevance_for_user": topic.relevance_for_user,
+                                        "source_subreddit": topic.source_subreddit,
+                                        "support_count": topic.support_count,
+                                        "impact_score": topic.impact_score,
+                                    }
+                                    for topic in analysis.digest_topics
+                                ),
+                            },
+                            processed_root=processed_root,
+                            run_date=context.run_date,
+                        ),
+                        operation="rewrite_openai_executive_summary",
+                        logger=self.logger,
+                    )
+                except Exception:
+                    self.logger.warning(
+                        "Skipping LLM executive summary rewrite for %s after failure",
+                        context.run_date,
+                        exc_info=True,
+                    )
+                else:
+                    executive_summary_rewrite = executive_summary_result.executive_summary
 
         return OpenAIArtifacts(
             watch_next=watch_next,
             topic_rewrites=topic_rewrites,
+            executive_summary_rewrite=executive_summary_rewrite,
             warnings=tuple(dict.fromkeys(markdown_warnings)),
             usage=openai_client.usage_summary(),
         )
@@ -293,7 +336,7 @@ class RenderStage:
             digest=digest,
         )
         llm_markdown = None
-        if openai.topic_rewrites:
+        if openai.topic_rewrites or openai.executive_summary_rewrite:
             llm_markdown = self.render_markdown_digest(
                 run_date=context.run_date,
                 insights=analysis.insights,
@@ -302,6 +345,7 @@ class RenderStage:
                 reports_root=self.base_path / "reports",
                 digest=digest,
                 topic_rewrites=openai.topic_rewrites,
+                executive_summary_rewrite=openai.executive_summary_rewrite,
                 variant_suffix="llm",
             )
         return RenderArtifacts(digest=digest, markdown=markdown, llm_markdown=llm_markdown)

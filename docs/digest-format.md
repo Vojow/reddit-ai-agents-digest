@@ -10,8 +10,8 @@ LLM-enhanced variant:
 - `reports/latest.llm.md`
 
 The LLM variant must use the same picked topics as the deterministic digest. It
-may only rewrite topic prose and must not change titles, links, subreddit
-attribution, support counts, or impact scores.
+may only rewrite the top-level executive summary and topic prose, and must not
+change titles, links, subreddit attribution, support counts, or impact scores.
 
 Current section order:
 
@@ -19,7 +19,7 @@ Current section order:
 # Daily Reddit Digest — 2026-03-12
 
 ## Warnings
-- OPENAI QUOTA EXHAUSTED: Watch Next suggestions and LLM topic rewrites were skipped. The deterministic markdown below was generated successfully without OpenAI enhancements.
+- OPENAI QUOTA EXHAUSTED: Watch Next suggestions, LLM topic rewrites, and LLM executive summary rewrites were skipped. The deterministic markdown below was generated successfully without OpenAI enhancements.
 
 ## Executive Summary
 - Picked 6 topics from 3 subreddit(s): r/Codex, r/ClaudeCode, r/Vibecoding
@@ -47,7 +47,9 @@ Notes:
 - `Warnings` is optional. It appears near the top of the digest when advisory
   OpenAI steps are skipped because of a hard-to-miss operational problem such as
   exhausted quota.
-- `Executive Summary` is generated from the selected topics and ranked post set.
+- `Executive Summary` is generated from the selected topics and ranked post set
+  in the deterministic digest, and may be advisory-rewritten only in the
+  `.llm.md` variant.
 - `Picked Topics` is the core section and is capped to the top six topics.
 - `Emerging Themes` is derived from the most common insight tags for the run.
 - `Watch Next` is optional. It uses OpenAI suggestions when available; otherwise

@@ -137,9 +137,10 @@ The markdown digest is topic-oriented in both variants:
   - impact score
 
 Topic selection stays deterministic. The LLM-enhanced markdown only rewrites the
-prose of already-selected topics into cleaner wording. It does not choose
-topics, links, or source subreddits, and if the rewrite step is unavailable or
-fails the deterministic markdown still completes normally.
+top-level executive summary and the prose of already-selected topics into
+cleaner wording. It does not choose topics, links, or source subreddits, and
+if an advisory rewrite step is unavailable or fails the deterministic markdown
+still completes normally.
 
 `Watch Next` is optional. When OpenAI suggestions are unavailable, the pipeline
 falls back to up to three insights marked `new`; if neither source is available,

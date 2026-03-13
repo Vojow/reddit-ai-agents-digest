@@ -15,6 +15,7 @@ from reddit_digest.collectors.reddit_posts import PostCollector
 from reddit_digest.collectors.reddit_posts import PublicRedditPostSource
 from reddit_digest.config import load_config
 from reddit_digest.extractors.openai_suggestions import generate_suggestions
+from reddit_digest.extractors.openai_suggestions import generate_executive_summary_rewrite
 from reddit_digest.extractors.openai_suggestions import generate_topic_rewrites
 from reddit_digest.extractors.service import extract_insights
 from reddit_digest.models.openai_usage import OpenAIUsageSummary
@@ -107,13 +108,14 @@ def _compose_stages(base_path: Path) -> PipelineStages:
             build_openai_client=build_openai_client,
             generate_suggestions=generate_suggestions,
             generate_topic_rewrites=generate_topic_rewrites,
+            generate_executive_summary_rewrite=generate_executive_summary_rewrite,
             build_suggestion_warning=lambda exc: _build_openai_warning(
                 exc,
-                skipped_steps="Watch Next suggestions and LLM topic rewrites",
+                skipped_steps="Watch Next suggestions, LLM topic rewrites, and LLM executive summary rewrites",
             ),
             build_rewrite_warning=lambda exc: _build_openai_warning(
                 exc,
-                skipped_steps="LLM topic rewrites",
+                skipped_steps="LLM topic rewrites and LLM executive summary rewrites",
             ),
         ),
         render=RenderStage(

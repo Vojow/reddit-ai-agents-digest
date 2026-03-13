@@ -109,7 +109,7 @@ def test_markdown_digest_renders_warnings_before_executive_summary(tmp_path: Pat
         thread_selection=thread_selection,
         reports_root=tmp_path / "reports",
         warnings=(
-            "OPENAI QUOTA EXHAUSTED: Watch Next suggestions and LLM topic rewrites were skipped. The deterministic markdown below was generated successfully without OpenAI enhancements.",
+            "OPENAI QUOTA EXHAUSTED: Watch Next suggestions, LLM topic rewrites, and LLM executive summary rewrites were skipped. The deterministic markdown below was generated successfully without OpenAI enhancements.",
         ),
     )
 
@@ -215,6 +215,7 @@ def test_render_markdown_digest_writes_llm_variant_with_rewritten_topics(tmp_pat
         thread_selection=thread_selection,
         reports_root=tmp_path / "reports",
         topics=topics,
+        executive_summary_rewrite="Three specific workflow topics stand out today across Codex and ClaudeCode.",
         topic_rewrites={
             topics[0].topic_key: (
                 "Sharper summary for the picked topic.",
@@ -226,6 +227,7 @@ def test_render_markdown_digest_writes_llm_variant_with_rewritten_topics(tmp_pat
 
     assert result.daily_path.name == "2026-03-12.llm.md"
     assert result.latest_path.name == "latest.llm.md"
+    assert "Three specific workflow topics stand out today across Codex and ClaudeCode." in result.content
     assert "Sharper summary for the picked topic." in result.content
     assert "This matters because it maps directly to your agent workflow." in result.content
     assert "- Original post:" in result.content

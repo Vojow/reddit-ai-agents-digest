@@ -37,6 +37,7 @@ def render_markdown_digest(
     topics: tuple[RankedTopic, ...] | None = None,
     digest: DigestArtifact | None = None,
     topic_rewrites: Mapping[str, tuple[str, str]] | None = None,
+    executive_summary_rewrite: str | None = None,
     variant_suffix: str = "",
 ) -> MarkdownDigestResult:
     artifact = digest or build_digest_artifact(
@@ -51,7 +52,7 @@ def render_markdown_digest(
     lines = [f"# Daily Reddit Digest — {run_date}", ""]
     if warnings:
         lines.extend(_render_warnings(warnings))
-    lines.extend(_render_executive_summary(artifact))
+    lines.extend(_render_executive_summary(artifact, executive_summary_rewrite=executive_summary_rewrite))
     lines.extend(_render_picked_topics(artifact.topics, topic_rewrites=topic_rewrites))
     lines.extend(_render_emerging_themes(artifact))
     watch_next_lines = _render_watch_next(artifact)
@@ -74,14 +75,20 @@ def _render_warnings(warnings: tuple[str, ...]) -> list[str]:
     return lines
 
 
-def _render_executive_summary(digest: DigestArtifact) -> list[str]:
+def _render_executive_summary(
+    digest: DigestArtifact,
+    *,
+    executive_summary_rewrite: str | None = None,
+) -> list[str]:
     bullets = [
         "## Executive Summary",
         *(
-            f"- Picked {len(digest.topics)} topics from {len(digest.represented_subreddits)} subreddit(s): "
-            f"{', '.join(f'r/{name}' for name in digest.represented_subreddits)}"
-            for _ in [0]
-            if digest.represented_subreddits
+            [f"- {executive_summary_rewrite}"]
+            if executive_summary_rewrite is not None
+            else [
+                f"- Picked {len(digest.topics)} topics from {len(digest.represented_subreddits)} subreddit(s): "
+                f"{', '.join(f'r/{name}' for name in digest.represented_subreddits)}"
+            ]
         ),
         *(f"- Highest-signal topic: {digest.top_topic_title}" for _ in [0] if digest.top_topic_title is not None),
         f"- Total posts analyzed: {digest.total_posts}",

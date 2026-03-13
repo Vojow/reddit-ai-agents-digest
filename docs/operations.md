@@ -76,6 +76,7 @@ Schema details for these artifact families live in
 - Processed insights: `data/processed/insights/YYYY-MM-DD.json`
 - OpenAI suggestions: `data/processed/suggestions/YYYY-MM-DD.json`
 - OpenAI topic rewrites: `data/processed/topic_rewrites/YYYY-MM-DD.json`
+- OpenAI executive summary rewrites: `data/processed/executive_summary_rewrites/YYYY-MM-DD.json`
 - Deterministic daily digest: `reports/daily/YYYY-MM-DD.md`
 - Deterministic latest digest: `reports/latest.md`
 - LLM daily digest: `reports/daily/YYYY-MM-DD.llm.md`
@@ -107,8 +108,9 @@ When Sheets export is enabled, the exporter rewrites these tabs idempotently by
   contribute threads or source posts.
 - Topic selection is deterministic and derived from scored insights.
 - The deterministic markdown and the LLM markdown use the same selected topics.
-- The LLM variant only rewrites `Picked Topics` prose. It does not change topic
-  titles, links, subreddit attribution, scores, or counts.
+- The LLM variant may rewrite the top-level `Executive Summary` and `Picked
+  Topics` prose. It does not change topic titles, links, subreddit attribution,
+  scores, or counts.
 
 ## Failure handling
 
@@ -118,7 +120,7 @@ Scenario-based rerun and recovery steps are documented in
 - Networked stages retry up to three times.
 - Same-day reruns overwrite file outputs deterministically.
 - The deterministic markdown remains the source-of-record output for each run.
-- The LLM markdown variant is best-effort; if topic rewriting fails, the
+- The LLM markdown variant is best-effort; if advisory rewriting fails, the
   deterministic markdown and run state still complete.
 - If OpenAI quota is exhausted, the deterministic markdown still completes and
   includes a prominent `## Warnings` section explaining that advisory OpenAI

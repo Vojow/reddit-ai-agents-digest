@@ -18,13 +18,15 @@ artifacts. The runtime flow is:
    `data/processed/suggestions/YYYY-MM-DD.json`.
 9. Optionally generate OpenAI-backed topic rewrites into
    `data/processed/topic_rewrites/YYYY-MM-DD.json`.
-10. Render the deterministic Markdown digest to `reports/daily/YYYY-MM-DD.md`
+10. Optionally generate an OpenAI-backed executive summary rewrite into
+    `data/processed/executive_summary_rewrites/YYYY-MM-DD.json`.
+11. Render the deterministic Markdown digest to `reports/daily/YYYY-MM-DD.md`
     and refresh `reports/latest.md`.
-11. Optionally render an LLM-enhanced digest for the same selected topics to
+12. Optionally render an LLM-enhanced digest for the same selected topics to
     `reports/daily/YYYY-MM-DD.llm.md` and `reports/latest.llm.md`.
-12. Optionally export raw posts, insights, and daily digest summaries to Google
+13. Optionally export raw posts, insights, and daily digest summaries to Google
     Sheets.
-13. Persist run metadata into `data/state/YYYY-MM-DD.json` and `data/state/latest.json`.
+14. Persist run metadata into `data/state/YYYY-MM-DD.json` and `data/state/latest.json`.
 
 Stage ownership and extension points are documented in
 [`docs/pipeline-stages.md`](pipeline-stages.md).
@@ -77,6 +79,8 @@ src/reddit_digest/
 - Picked topics are rendered from scored insights with source links from the
   ranked enabled-subreddit post set.
 - OpenAI remains advisory and does not create same-day Reddit findings or choose topics.
+- The `.llm.md` variant may rewrite the top-level executive summary and picked-topic prose,
+  but it keeps deterministic titles, links, subreddit attribution, counts, and scores.
 
 The main architectural constraints and tradeoffs now live in the ADR index:
 [`docs/adr/README.md`](adr/README.md).
