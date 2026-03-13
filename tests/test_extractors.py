@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 import json
 
+from reddit_digest.extractors.registry import RULESETS
+from reddit_digest.extractors.registry import patterns_for_ruleset
 from reddit_digest.extractors.service import extract_insights
 from reddit_digest.models.comment import Comment
 from reddit_digest.models.post import Post
@@ -52,3 +54,9 @@ def test_extract_insights_handles_no_matches(sample_posts_payload: list[dict[str
 
     assert result.insights == ()
     assert json.loads(result.path.read_text()) == []
+
+
+def test_extractor_registry_defines_rulesets_without_service_wiring() -> None:
+    assert [ruleset.name for ruleset in RULESETS] == ["tools", "approaches", "guides", "testing"]
+    assert any(pattern.title == "Codex" for pattern in patterns_for_ruleset("tools"))
+    assert any(pattern.title == "Deterministic prompting" for pattern in patterns_for_ruleset("testing"))
