@@ -396,6 +396,7 @@ class DeliveryStage:
                         topics=tuple(
                             TeamsTopicSummary(
                                 title=topic.title,
+                                source_url=topic.source_url,
                                 subreddit=topic.source_subreddit,
                                 impact_score=topic.impact_score,
                             )

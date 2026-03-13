@@ -24,6 +24,7 @@ class SessionLike(Protocol):
 @dataclass(frozen=True)
 class TeamsTopicSummary:
     title: str
+    source_url: str
     subreddit: str
     impact_score: float
 
@@ -86,14 +87,8 @@ def build_teams_payload(
         },
         {
             "activityTitle": "Top Topics",
-            "facts": [
-                {
-                    "name": f"{index}. {topic.title}",
-                    "value": f"r/{topic.subreddit} · impact {topic.impact_score:.2f}",
-                }
-                for index, topic in enumerate(topics[:3], start=1)
-            ]
-            or [{"name": "Topics", "value": "No picked topics today."}],
+            "markdown": True,
+            "text": _render_topic_lines(topics),
         },
         {
             "activityTitle": "Emerging Themes",
@@ -105,11 +100,8 @@ def build_teams_payload(
         },
         {
             "activityTitle": "Watch Next",
-            "facts": [
-                {"name": "Items", "value": " | ".join(watch_next)}
-            ]
-            if watch_next
-            else [{"name": "Items", "value": "No watch-next items."}],
+            "markdown": True,
+            "text": _render_watch_next_lines(watch_next),
         },
         {
             "activityTitle": "OpenAI Usage",
@@ -138,3 +130,18 @@ def build_teams_payload(
         "title": f"Daily Reddit Digest — {run_date}",
         "sections": sections,
     }
+
+
+def _render_topic_lines(topics: tuple[TeamsTopicSummary, ...]) -> str:
+    if not topics:
+        return "No picked topics today."
+    return "<br>".join(
+        f"{index}. [{topic.title}]({topic.source_url}) · r/{topic.subreddit} · impact {topic.impact_score:.2f}"
+        for index, topic in enumerate(topics[:3], start=1)
+    )
+
+
+def _render_watch_next_lines(watch_next: tuple[str, ...]) -> str:
+    if not watch_next:
+        return "No watch-next items."
+    return "<br>".join(f"{index}. {item}" for index, item in enumerate(watch_next, start=1))
