@@ -114,17 +114,21 @@ with a Sheets `403`.
 
 ## 7. Configure The GitHub Repository
 
-Set these repository variables:
+Repository variables used by the current self-hosted markdown workflow:
+
+- `REDDIT_USER_AGENT`
+- `OPENAI_MODEL` if you want to override the default model
+
+Additional repository variables required once Sheets export is re-enabled in
+CI:
 
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`
 - `GCP_SERVICE_ACCOUNT_EMAIL`
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 
-Set these repository secrets:
+Repository secrets:
 
-- `REDDIT_USER_AGENT`
-- `OPENAI_API_KEY` if you want `Watch Next` suggestions
-- `OPENAI_MODEL` if you want to override the default model
+- `OPENAI_API_KEY` if you want `Watch Next` suggestions and LLM digest rewrites
 
 The workflow in [`.github/workflows/daily-digest.yml`](../.github/workflows/daily-digest.yml)
 uses `google-github-actions/auth` with:
@@ -140,10 +144,12 @@ exporter at runtime.
 ## 8. Validate The Setup
 
 1. Confirm the spreadsheet is shared with `SERVICE_ACCOUNT_EMAIL`.
-2. Confirm the three GitHub repository variables are set.
-3. Confirm `id-token: write` is present in the workflow permissions.
-4. Run the workflow manually from the GitHub Actions UI.
-5. Check that the `Daily_Digest`, `Insights`, and `Raw_Posts` tabs update for
+2. Confirm the required GitHub repository variables are set.
+3. Re-enable the Google auth step and remove `--skip-sheets` from CI before
+   expecting Sheets writes from GitHub Actions.
+4. Confirm `id-token: write` is present in the workflow permissions.
+5. Run the workflow manually from the GitHub Actions UI.
+6. Check that the `Daily_Digest`, `Insights`, and `Raw_Posts` tabs update for
    the new run date.
 
 ## Troubleshooting

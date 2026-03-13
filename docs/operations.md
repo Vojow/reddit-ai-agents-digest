@@ -6,6 +6,9 @@
 uv sync --dev
 ```
 
+The CLI auto-loads `.env` from the repository root when config is read.
+Exported environment variables still override values from `.env`.
+
 Required environment variables for local markdown-only runs:
 - `REDDIT_USER_AGENT`
 
@@ -30,6 +33,21 @@ Optional environment variables:
 - `MIN_COMMENTS`
 - `MAX_POSTS_PER_SUBREDDIT`
 - `MAX_COMMENTS_PER_POST`
+
+`OPENAI_MODEL` defaults to `gpt-5-mini` when it is unset.
+
+## CLI reference
+
+The CLI entrypoint is `reddit-digest` and currently exposes one subcommand:
+
+```bash
+uv run reddit-digest run-daily --date 2026-03-12
+```
+
+Supported flags:
+- `--date YYYY-MM-DD` selects the run date and defaults to the current day.
+- `--skip-sheets` skips Google Sheets export and only writes local artifacts.
+- `--base-path PATH` runs the pipeline against a different repository root.
 
 ## Run locally
 
@@ -59,6 +77,15 @@ uv run reddit-digest run-daily --date 2026-03-12
 - LLM daily digest: `reports/daily/YYYY-MM-DD.llm.md`
 - LLM latest digest: `reports/latest.llm.md`
 - Run state: `data/state/YYYY-MM-DD.json`
+- Latest run state mirror: `data/state/latest.json`
+
+## Google Sheets tabs
+
+When Sheets export is enabled, the exporter rewrites these tabs idempotently by
+`run_date`:
+- `Raw_Posts` stores one scored row per collected post.
+- `Insights` stores one scored row per extracted insight.
+- `Daily_Digest` stores one summary row per daily report.
 
 ## Ranking behavior
 
@@ -78,6 +105,11 @@ uv run reddit-digest run-daily --date 2026-03-12
 - The deterministic markdown remains the source-of-record output for each run.
 - The LLM markdown variant is best-effort; if topic rewriting fails, the
   deterministic markdown and run state still complete.
+- If OpenAI quota is exhausted, the deterministic markdown still completes and
+  includes a prominent `## Warnings` section explaining that advisory OpenAI
+  outputs were skipped.
+- When OpenAI suggestions are unavailable, `Watch Next` falls back to up to
+  three insights marked `new`.
 - Sheets export replaces existing rows for the same `run_date`.
 - The latest completed state is mirrored into `data/state/latest.json`.
 
