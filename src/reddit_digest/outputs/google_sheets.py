@@ -39,10 +39,16 @@ class WorksheetLike(Protocol):
     def get_all_records(self) -> list[dict[str, Any]]:
         ...
 
-    def clear(self) -> None:
+    def get_all_values(self) -> list[list[Any]]:
         ...
 
-    def update(self, values: list[list[Any]]) -> None:
+    def update(self, range_name: str, values: list[list[Any]]) -> None:
+        ...
+
+    def append_rows(self, values: list[list[Any]]) -> None:
+        ...
+
+    def delete_rows(self, start_index: int, end_index: int | None = None) -> None:
         ...
 
 
@@ -88,9 +94,15 @@ class GoogleSheetsExporter:
         insight_rows = _build_insight_rows(insights, scoring, run_date=run_date)
         digest_row = _build_daily_digest_row(digest)
 
-        self._upsert_rows(RAW_POSTS_TAB, RAW_POST_HEADERS, run_date, raw_post_rows)
-        self._upsert_rows(INSIGHTS_TAB, INSIGHT_HEADERS, run_date, insight_rows)
-        self._upsert_rows(DAILY_DIGEST_TAB, DAILY_DIGEST_HEADERS, run_date, [digest_row])
+        self._upsert_rows(RAW_POSTS_TAB, RAW_POST_HEADERS, run_date, ("run_date", "post_id"), raw_post_rows)
+        self._upsert_rows(
+            INSIGHTS_TAB,
+            INSIGHT_HEADERS,
+            run_date,
+            ("run_date", "source_id", "category", "title"),
+            insight_rows,
+        )
+        self._upsert_rows(DAILY_DIGEST_TAB, DAILY_DIGEST_HEADERS, run_date, ("run_date",), [digest_row])
 
         LOGGER.info("Exported %s raw post rows to %s", len(raw_post_rows), RAW_POSTS_TAB)
         LOGGER.info("Exported %s insight rows to %s", len(insight_rows), INSIGHTS_TAB)
@@ -98,14 +110,73 @@ class GoogleSheetsExporter:
 
         return ExportCounts(raw_posts=len(raw_post_rows), insights=len(insight_rows), daily_digest=1)
 
-    def _upsert_rows(self, tab_name: str, headers: list[str], run_date: str, new_rows: list[dict[str, Any]]) -> None:
+    def _upsert_rows(
+        self,
+        tab_name: str,
+        headers: list[str],
+        run_date: str,
+        key_fields: tuple[str, ...],
+        new_rows: list[dict[str, Any]],
+    ) -> None:
         worksheet = self._ensure_worksheet(tab_name, cols=len(headers))
-        existing = worksheet.get_all_records()
-        preserved = [row for row in existing if row.get("run_date") != run_date]
-        merged_rows = preserved + new_rows
-        sheet_rows = [headers] + [[row.get(header, "") for header in headers] for row in merged_rows]
-        worksheet.clear()
-        worksheet.update(sheet_rows)
+        existing_values = worksheet.get_all_values()
+        if not existing_values:
+            worksheet.update(_row_range(1, len(headers)), [headers])
+            existing_records: list[dict[str, Any]] = []
+        else:
+            if existing_values[0] != headers:
+                worksheet.update(_row_range(1, len(headers)), [headers])
+            existing_records = worksheet.get_all_records()
+
+        existing_by_key = {
+            _row_key(row, key_fields): index
+            for index, row in enumerate(existing_records, start=2)
+            if _row_key(row, key_fields) is not None
+        }
+        new_by_key = {
+            _row_key(row, key_fields): row
+            for row in new_rows
+            if _row_key(row, key_fields) is not None
+        }
+
+        stale_rows = sorted(
+            [
+                row_index
+                for key, row_index in existing_by_key.items()
+                if key is not None
+                and key[0] == run_date
+                and key not in new_by_key
+            ],
+            reverse=True,
+        )
+        for row_index in stale_rows:
+            worksheet.delete_rows(row_index)
+
+        if stale_rows:
+            existing_records = worksheet.get_all_records()
+            existing_by_key = {
+                _row_key(row, key_fields): index
+                for index, row in enumerate(existing_records, start=2)
+                if _row_key(row, key_fields) is not None
+            }
+            surviving_existing = existing_by_key
+        else:
+            surviving_existing = existing_by_key
+
+        append_values: list[list[Any]] = []
+        for row in new_rows:
+            key = _row_key(row, key_fields)
+            if key is None:
+                continue
+            values = [[row.get(header, "") for header in headers]]
+            row_index = surviving_existing.get(key)
+            if row_index is None:
+                append_values.append(values[0])
+            else:
+                worksheet.update(_row_range(row_index, len(headers)), values)
+
+        if append_values:
+            worksheet.append_rows(append_values)
 
     def _ensure_worksheet(self, title: str, *, cols: int) -> WorksheetLike:
         try:
@@ -241,3 +312,26 @@ def _build_daily_digest_row(
         "top_testing_insight": digest.top_testing_insight,
         "watch_next": " | ".join(digest.watch_next[:3]),
     }
+
+
+def _row_key(row: dict[str, Any], key_fields: tuple[str, ...]) -> tuple[str, ...] | None:
+    values: list[str] = []
+    for field in key_fields:
+        value = row.get(field)
+        if value in (None, ""):
+            return None
+        values.append(str(value))
+    return tuple(values)
+
+
+def _row_range(row_index: int, column_count: int) -> str:
+    return f"A{row_index}:{_column_label(column_count)}{row_index}"
+
+
+def _column_label(column_index: int) -> str:
+    label = ""
+    current = column_index
+    while current > 0:
+        current, remainder = divmod(current - 1, 26)
+        label = chr(65 + remainder) + label
+    return label

@@ -28,6 +28,10 @@ from reddit_digest.ranking.threads import select_threads
 class FakeWorksheet:
     title: str
     rows: list[list[Any]]
+    clear_calls: int = 0
+    update_calls: list[tuple[str, list[list[Any]]]] | None = None
+    append_calls: list[list[list[Any]]] | None = None
+    delete_calls: list[tuple[int, int | None]] | None = None
 
     def get_all_records(self) -> list[dict[str, Any]]:
         if not self.rows:
@@ -35,11 +39,38 @@ class FakeWorksheet:
         header = self.rows[0]
         return [dict(zip(header, row, strict=False)) for row in self.rows[1:]]
 
+    def get_all_values(self) -> list[list[Any]]:
+        return [list(row) for row in self.rows]
+
     def clear(self) -> None:
+        self.clear_calls += 1
         self.rows = []
 
-    def update(self, values: list[list[Any]]) -> None:
-        self.rows = values
+    def update(self, range_name: str, values: list[list[Any]]) -> None:
+        if self.update_calls is None:
+            self.update_calls = []
+        self.update_calls.append((range_name, values))
+        start_row = int(range_name.split(":")[0][1:])
+        while len(self.rows) < start_row:
+            self.rows.append([])
+        for offset, row in enumerate(values):
+            target_index = start_row - 1 + offset
+            while len(self.rows) <= target_index:
+                self.rows.append([])
+            self.rows[target_index] = row
+
+    def append_rows(self, values: list[list[Any]]) -> None:
+        if self.append_calls is None:
+            self.append_calls = []
+        self.append_calls.append(values)
+        self.rows.extend(values)
+
+    def delete_rows(self, start_index: int, end_index: int | None = None) -> None:
+        if self.delete_calls is None:
+            self.delete_calls = []
+        self.delete_calls.append((start_index, end_index))
+        end = start_index if end_index is None else end_index
+        del self.rows[start_index - 1 : end]
 
 
 class FakeWorkbook:
@@ -181,6 +212,60 @@ def test_google_sheets_export_is_idempotent_for_same_run_date(
     assert len(raw_rows) == len(posts)
     assert len(insight_rows) == len(insights)
     assert len(digest_rows) == 1
+    assert workbook.worksheet(RAW_POSTS_TAB).clear_calls == 0
+    assert workbook.worksheet(INSIGHTS_TAB).clear_calls == 0
+    assert workbook.worksheet(DAILY_DIGEST_TAB).clear_calls == 0
+
+
+def test_google_sheets_upsert_preserves_older_rows_and_removes_stale_same_date_rows() -> None:
+    workbook = FakeWorkbook()
+    exporter = GoogleSheetsExporter(workbook)
+    worksheet = workbook.add_worksheet(RAW_POSTS_TAB, rows=100, cols=10)
+    worksheet.rows = [
+        ["run_date", "post_id", "subreddit", "title", "url", "permalink", "score", "num_comments", "created_utc", "impact_score"],
+        ["2026-03-11", "old_1", "Codex", "Older row", "https://example.com/old", "/old", 10, 3, 123, 2.5],
+        ["2026-03-12", "stale", "Codex", "Stale row", "https://example.com/stale", "/stale", 5, 1, 124, 1.5],
+        ["2026-03-12", "keep", "ClaudeCode", "Outdated title", "https://example.com/keep", "/keep", 9, 4, 125, 3.5],
+    ]
+
+    exporter._upsert_rows(
+        RAW_POSTS_TAB,
+        ["run_date", "post_id", "subreddit", "title", "url", "permalink", "score", "num_comments", "created_utc", "impact_score"],
+        "2026-03-12",
+        ("run_date", "post_id"),
+        [
+            {
+                "run_date": "2026-03-12",
+                "post_id": "keep",
+                "subreddit": "ClaudeCode",
+                "title": "Updated title",
+                "url": "https://example.com/keep",
+                "permalink": "/keep",
+                "score": 11,
+                "num_comments": 5,
+                "created_utc": 125,
+                "impact_score": 4.1,
+            },
+            {
+                "run_date": "2026-03-12",
+                "post_id": "new_1",
+                "subreddit": "Vibecoding",
+                "title": "New row",
+                "url": "https://example.com/new",
+                "permalink": "/new",
+                "score": 7,
+                "num_comments": 2,
+                "created_utc": 126,
+                "impact_score": 2.2,
+            },
+        ],
+    )
+
+    records = worksheet.get_all_records()
+    assert [row["post_id"] for row in records] == ["old_1", "keep", "new_1"]
+    assert next(row for row in records if row["post_id"] == "keep")["title"] == "Updated title"
+    assert worksheet.clear_calls == 0
+    assert worksheet.delete_calls == [(3, None)]
 
 
 def test_google_sheets_daily_digest_uses_structured_top_thread_not_collection_order(tmp_path: Path) -> None:
