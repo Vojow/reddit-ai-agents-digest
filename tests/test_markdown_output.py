@@ -231,6 +231,126 @@ def test_render_markdown_digest_writes_llm_variant_with_rewritten_topics(tmp_pat
     assert "- Original post:" in result.content
 
 
+def test_select_digest_topics_prefers_specific_tool_issue_titles(tmp_path: Path) -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    posts = (
+        _build_post(
+            post_id="claude-1",
+            subreddit="ClaudeCode",
+            score=99,
+            num_comments=26,
+            title='Claude Code is not "stupid now": it is being system prompted to act like that',
+        ),
+        _build_post(
+            post_id="codex-1",
+            subreddit="Codex",
+            score=97,
+            num_comments=24,
+            title="Bad news: Codex limits were tightened again",
+        ),
+        _build_post(
+            post_id="hybrid-1",
+            subreddit="ClaudeCode",
+            score=95,
+            num_comments=22,
+            title="Hybrid Claude Code / Codex",
+        ),
+    )
+    insights = (
+        _build_tool_insight(posts[0], title="Claude Code"),
+        _build_tool_insight(posts[1], title="Codex"),
+        _build_tool_insight(posts[2], title="Codex"),
+    )
+    thread_selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex", "ClaudeCode"),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+        lookback_hours=24,
+    )
+
+    topics = select_digest_topics(
+        insights=insights,
+        scoring=scoring,
+        thread_selection=thread_selection,
+    )
+
+    titles = {topic.title for topic in topics}
+    assert "Claude Code" not in titles
+    assert "Codex" not in titles
+    assert "Claude Code system prompting behavior" in titles
+    assert "Codex plan and quota changes" in titles
+    assert "Hybrid Claude Code and Codex workflows" in titles
+
+
+def test_select_digest_topics_groups_similar_tool_issue_threads(tmp_path: Path) -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    posts = (
+        _build_post(
+            post_id="codex-1",
+            subreddit="Codex",
+            score=99,
+            num_comments=25,
+            title="Bad news: Codex limits are getting tighter",
+        ),
+        _build_post(
+            post_id="codex-2",
+            subreddit="Codex",
+            score=95,
+            num_comments=21,
+            title="Codex quota tightened again this week",
+        ),
+    )
+    insights = tuple(_build_tool_insight(post, title="Codex") for post in posts)
+    thread_selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex",),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+        lookback_hours=24,
+    )
+
+    topics = select_digest_topics(
+        insights=insights,
+        scoring=scoring,
+        thread_selection=thread_selection,
+    )
+
+    assert len(topics) == 1
+    assert topics[0].title == "Codex plan and quota changes"
+    assert topics[0].support_count == 2
+    assert "limits, quotas, and plan changes" in topics[0].executive_summary
+
+
+def test_select_digest_topics_keeps_generic_tool_title_when_discussion_is_tool_wide(tmp_path: Path) -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    post = _build_post(
+        post_id="codex-1",
+        subreddit="Codex",
+        score=99,
+        num_comments=25,
+        title="Codex is better than before",
+    )
+    insight = _build_tool_insight(post, title="Codex")
+    thread_selection = select_threads(
+        (post,),
+        scoring=scoring,
+        enabled_subreddits=("Codex",),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+        lookback_hours=24,
+    )
+
+    topics = select_digest_topics(
+        insights=(insight,),
+        scoring=scoring,
+        thread_selection=thread_selection,
+    )
+
+    assert len(topics) == 1
+    assert topics[0].title == "Codex"
+    assert topics[0].executive_summary == insight.summary
+
+
 def test_select_emerging_themes_dedupes_titles_merges_overlapping_tags_and_caps_evidence() -> None:
     scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
     insights = (
@@ -325,12 +445,12 @@ def test_select_emerging_themes_dedupes_titles_merges_overlapping_tags_and_caps_
     assert "Coding Agents" not in [theme.label for theme in themes]
 
 
-def _build_post(*, post_id: str, subreddit: str, score: int, num_comments: int) -> Post:
+def _build_post(*, post_id: str, subreddit: str, score: int, num_comments: int, title: str | None = None) -> Post:
     return Post.from_raw(
         {
             "id": post_id,
             "subreddit": subreddit,
-            "title": f"{subreddit} thread {post_id}",
+            "title": title or f"{subreddit} thread {post_id}",
             "author": "tester",
             "score": score,
             "num_comments": num_comments,
@@ -356,6 +476,24 @@ def _build_insight(post: Post) -> Insight:
             "source_permalink": post.url,
             "subreddit": post.subreddit,
             "why_it_matters": f"{post.subreddit} guidance stays actionable.",
+        }
+    )
+
+
+def _build_tool_insight(post: Post, *, title: str) -> Insight:
+    return Insight.from_raw(
+        {
+            "category": "tools",
+            "title": title,
+            "summary": f"{title} is being used as an agentic coding tool in real workflows.",
+            "tags": ["ai-agents", "tooling"],
+            "evidence": f"Evidence from {post.id}",
+            "source_kind": "post",
+            "source_id": post.id,
+            "source_post_id": post.id,
+            "source_permalink": post.url,
+            "subreddit": post.subreddit,
+            "why_it_matters": f"{title} appears in hands-on discussions about practical agent-assisted coding.",
         }
     )
 
