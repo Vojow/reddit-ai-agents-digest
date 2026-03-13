@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from collections import Counter
 from collections import defaultdict
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ class MarkdownDigestResult:
 
 @dataclass(frozen=True)
 class RankedTopic:
+    topic_key: str
     title: str
     executive_summary: str
     relevance_for_user: str
@@ -40,36 +42,47 @@ def render_markdown_digest(
     thread_selection: ThreadSelection,
     reports_root: Path,
     watch_next: tuple[str, ...] = (),
+    topics: tuple[RankedTopic, ...] | None = None,
+    topic_rewrites: Mapping[str, tuple[str, str]] | None = None,
+    variant_suffix: str = "",
 ) -> MarkdownDigestResult:
     scored_insights = sorted(
         [(insight, score_insight(insight, scoring)) for insight in insights],
         key=lambda item: (item[0].category, -item[1].total, item[0].title, item[0].source_id),
     )
-    topics = _select_topics(thread_selection, scored_insights)
+    selected_topics = topics or select_digest_topics(
+        insights=insights,
+        scoring=scoring,
+        thread_selection=thread_selection,
+    )
 
     lines = [f"# Daily Reddit Digest — {run_date}", ""]
-    lines.extend(_render_executive_summary(thread_selection, topics))
-    lines.extend(_render_picked_topics(topics))
+    lines.extend(_render_executive_summary(thread_selection, selected_topics))
+    lines.extend(_render_picked_topics(selected_topics, topic_rewrites=topic_rewrites))
     lines.extend(_render_emerging_themes(scored_insights))
     watch_next_lines = _render_watch_next(watch_next=watch_next, scored_insights=scored_insights)
     if watch_next_lines:
         lines.extend(watch_next_lines)
 
     content = "\n".join(lines).strip() + "\n"
-    daily_path = reports_root / "daily" / f"{run_date}.md"
-    latest_path = reports_root / "latest.md"
+    daily_path, latest_path = _build_output_paths(reports_root=reports_root, run_date=run_date, variant_suffix=variant_suffix)
     daily_path.parent.mkdir(parents=True, exist_ok=True)
     daily_path.write_text(content)
     latest_path.write_text(content)
     return MarkdownDigestResult(daily_path=daily_path, latest_path=latest_path, content=content)
 
 
-def _select_topics(
-    thread_selection: ThreadSelection,
-    scored_insights: list[tuple[Insight, object]],
+def select_digest_topics(
     *,
+    insights: tuple[Insight, ...],
+    scoring: ScoringConfig,
+    thread_selection: ThreadSelection,
     limit: int = 6,
 ) -> tuple[RankedTopic, ...]:
+    scored_insights = sorted(
+        [(insight, score_insight(insight, scoring)) for insight in insights],
+        key=lambda item: (item[0].category, -item[1].total, item[0].title, item[0].source_id),
+    )
     grouped: dict[tuple[str, str], list[tuple[Insight, object]]] = defaultdict(list)
     for insight, breakdown in scored_insights:
         grouped[(insight.category, insight.title.casefold())].append((insight, breakdown))
@@ -88,6 +101,7 @@ def _select_topics(
         support_count = len({insight.source_post_id for insight, _ in entries})
         topics.append(
             RankedTopic(
+                topic_key="",
                 title=best_insight.title,
                 executive_summary=best_insight.summary,
                 relevance_for_user=best_insight.why_it_matters or best_insight.summary,
@@ -99,7 +113,21 @@ def _select_topics(
             )
         )
 
-    return tuple(sorted(topics, key=lambda item: (-item.impact_score, item.title, item.source_url))[:limit])
+    ordered_topics = sorted(topics, key=lambda item: (-item.impact_score, item.title, item.source_url))[:limit]
+    return tuple(
+        RankedTopic(
+            topic_key=f"topic_{index}",
+            title=topic.title,
+            executive_summary=topic.executive_summary,
+            relevance_for_user=topic.relevance_for_user,
+            source_title=topic.source_title,
+            source_url=topic.source_url,
+            source_subreddit=topic.source_subreddit,
+            impact_score=topic.impact_score,
+            support_count=topic.support_count,
+        )
+        for index, topic in enumerate(ordered_topics, start=1)
+    )
 
 
 def _render_executive_summary(thread_selection: ThreadSelection, topics: tuple[RankedTopic, ...]) -> list[str]:
@@ -115,7 +143,11 @@ def _render_executive_summary(thread_selection: ThreadSelection, topics: tuple[R
     return bullets
 
 
-def _render_picked_topics(topics: tuple[RankedTopic, ...]) -> list[str]:
+def _render_picked_topics(
+    topics: tuple[RankedTopic, ...],
+    *,
+    topic_rewrites: Mapping[str, tuple[str, str]] | None = None,
+) -> list[str]:
     lines = ["## Picked Topics"]
     if not topics:
         lines.append("- No picked topics today.")
@@ -123,9 +155,13 @@ def _render_picked_topics(topics: tuple[RankedTopic, ...]) -> list[str]:
         return lines
 
     for index, topic in enumerate(topics, start=1):
+        executive_summary = topic.executive_summary
+        relevance_for_user = topic.relevance_for_user
+        if topic_rewrites and topic.topic_key in topic_rewrites:
+            executive_summary, relevance_for_user = topic_rewrites[topic.topic_key]
         lines.append(f"### {index}. {topic.title}")
-        lines.append(f"- Executive summary: {topic.executive_summary}")
-        lines.append(f"- Relevance for you: {topic.relevance_for_user}")
+        lines.append(f"- Executive summary: {executive_summary}")
+        lines.append(f"- Relevance for you: {relevance_for_user}")
         lines.append(f"- Original post: [{topic.source_title}]({topic.source_url})")
         lines.append(f"- Source subreddit: r/{topic.source_subreddit}")
         lines.append(f"- Supporting threads: {topic.support_count}")
@@ -166,3 +202,10 @@ def _render_watch_next(
         lines.append(f"- {item}")
     lines.append("")
     return lines
+
+
+def _build_output_paths(*, reports_root: Path, run_date: str, variant_suffix: str) -> tuple[Path, Path]:
+    suffix = f".{variant_suffix}" if variant_suffix else ""
+    daily_path = reports_root / "daily" / f"{run_date}{suffix}.md"
+    latest_path = reports_root / f"latest{suffix}.md"
+    return daily_path, latest_path

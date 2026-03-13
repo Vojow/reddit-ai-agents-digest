@@ -10,6 +10,7 @@ from reddit_digest.models.comment import Comment
 from reddit_digest.models.insight import Insight
 from reddit_digest.models.post import Post
 from reddit_digest.outputs.markdown import render_markdown_digest
+from reddit_digest.outputs.markdown import select_digest_topics
 from reddit_digest.ranking.novelty import apply_novelty
 from reddit_digest.ranking.threads import select_threads
 
@@ -153,6 +154,50 @@ def test_markdown_digest_is_deterministic_for_same_inputs(tmp_path: Path) -> Non
     )
 
     assert first.content == second.content
+
+
+def test_render_markdown_digest_writes_llm_variant_with_rewritten_topics(tmp_path: Path) -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    posts = (
+        _build_post(post_id="codex-1", subreddit="Codex", score=99, num_comments=25),
+        _build_post(post_id="claude-1", subreddit="ClaudeCode", score=96, num_comments=23),
+        _build_post(post_id="codex-2", subreddit="Codex", score=92, num_comments=19),
+    )
+    insights = tuple(_build_insight(post) for post in posts)
+    thread_selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex", "ClaudeCode"),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+        lookback_hours=24,
+    )
+    topics = select_digest_topics(
+        insights=insights,
+        scoring=scoring,
+        thread_selection=thread_selection,
+    )
+
+    result = render_markdown_digest(
+        run_date="2026-03-12",
+        insights=insights,
+        scoring=scoring,
+        thread_selection=thread_selection,
+        reports_root=tmp_path / "reports",
+        topics=topics,
+        topic_rewrites={
+            topics[0].topic_key: (
+                "Sharper summary for the picked topic.",
+                "This matters because it maps directly to your agent workflow.",
+            )
+        },
+        variant_suffix="llm",
+    )
+
+    assert result.daily_path.name == "2026-03-12.llm.md"
+    assert result.latest_path.name == "latest.llm.md"
+    assert "Sharper summary for the picked topic." in result.content
+    assert "This matters because it maps directly to your agent workflow." in result.content
+    assert "- Original post:" in result.content
 
 
 def _build_post(*, post_id: str, subreddit: str, score: int, num_comments: int) -> Post:
