@@ -26,6 +26,9 @@ artifacts. The runtime flow is:
     Sheets.
 13. Persist run metadata into `data/state/YYYY-MM-DD.json` and `data/state/latest.json`.
 
+Stage ownership and extension points are documented in
+[`docs/pipeline-stages.md`](pipeline-stages.md).
+
 ## Code layout
 
 ```text

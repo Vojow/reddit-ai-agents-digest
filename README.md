@@ -39,6 +39,7 @@ uv run pytest
 
 - [Architecture](docs/architecture.md)
 - [Repo invariants](docs/invariants.md)
+- [Pipeline stage contracts](docs/pipeline-stages.md)
 - [Operations](docs/operations.md)
 - [Digest format](docs/digest-format.md)
 - [GCP WIF setup](docs/gcp-wif-setup.md)
