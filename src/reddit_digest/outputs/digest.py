@@ -8,9 +8,17 @@ import re
 
 from reddit_digest.config import ScoringConfig
 from reddit_digest.models.insight import Insight
+from reddit_digest.models.post import Post
 from reddit_digest.ranking.impact import score_insight
 from reddit_digest.ranking.impact import ScoreBreakdown
 from reddit_digest.ranking.threads import ThreadSelection
+
+GENERIC_TOOL_TITLES = {
+    "claude code",
+    "codex",
+    "vibe coding",
+    "vibecoding",
+}
 
 
 @dataclass(frozen=True)
@@ -75,13 +83,14 @@ def select_digest_topics(
         [(insight, score_insight(insight, scoring)) for insight in insights],
         key=lambda item: (item[0].category, -item[1].total, item[0].title, item[0].source_id),
     )
-    grouped: dict[tuple[str, str], list[tuple[Insight, object]]] = defaultdict(list)
-    for insight, breakdown in scored_insights:
-        grouped[(insight.category, insight.title.casefold())].append((insight, breakdown))
-
     post_lookup = {ranked.post.id: ranked.post for ranked in thread_selection.ranked_posts}
+    grouped: dict[tuple[str, str], list[tuple[Insight, ScoreBreakdown]]] = defaultdict(list)
+    for insight, breakdown in scored_insights:
+        topic_label = _resolve_topic_label(insight, source_post=post_lookup.get(insight.source_post_id))
+        grouped[(insight.category, topic_label.casefold())].append((insight, breakdown))
+
     topics: list[RankedTopic] = []
-    for entries in grouped.values():
+    for (_category, _normalized_label), entries in grouped.items():
         best_insight, best_breakdown = sorted(
             entries,
             key=lambda item: (-item[1].total, item[0].title, item[0].source_id),
@@ -91,12 +100,13 @@ def select_digest_topics(
         source_url = source_post.url if source_post is not None else best_insight.source_permalink
         source_subreddit = source_post.subreddit if source_post is not None else best_insight.subreddit
         support_count = len({insight.source_post_id for insight, _ in entries})
+        topic_title = _resolve_topic_label(best_insight, source_post=source_post)
         topics.append(
             RankedTopic(
                 topic_key="",
-                title=best_insight.title,
-                executive_summary=best_insight.summary,
-                relevance_for_user=best_insight.why_it_matters or best_insight.summary,
+                title=topic_title,
+                executive_summary=_resolve_topic_summary(best_insight, topic_title=topic_title),
+                relevance_for_user=_resolve_topic_relevance(best_insight, topic_title=topic_title),
                 source_title=source_title,
                 source_url=source_url,
                 source_subreddit=source_subreddit,
@@ -254,3 +264,64 @@ def _normalize_theme_title(title: str) -> str:
 
 def _clean_theme_title(title: str) -> str:
     return re.sub(r"\s+", " ", title.strip())
+
+
+def _resolve_topic_label(insight: Insight, *, source_post: Post | None) -> str:
+    if insight.category != "tools" or insight.title.casefold() not in GENERIC_TOOL_TITLES or source_post is None:
+        return insight.title
+
+    return _derive_specific_tool_topic_label(insight.title, source_post.title) or insight.title
+
+
+def _derive_specific_tool_topic_label(tool_name: str, source_title: str) -> str | None:
+    normalized_title = source_title.casefold()
+
+    if "hybrid" in normalized_title and "claude code" in normalized_title and "codex" in normalized_title:
+        return "Hybrid Claude Code and Codex workflows"
+    if any(term in normalized_title for term in ("permission", "allowedtools", "dangerously-skip-permissions", "headless", "cron")):
+        return f"{tool_name} permission model for headless automation"
+    if ("/review" in normalized_title or " review " in f" {normalized_title} ") and any(
+        term in normalized_title for term in ("token", "usage", "cost", "burn", "spike")
+    ):
+        return f"{tool_name} /review token usage spikes"
+    if any(term in normalized_title for term in ("limit", "quota", "subscription", "plan", "throttl", "bad news")):
+        return f"{tool_name} plan and quota changes"
+    if any(term in normalized_title for term in ("plugin", "/wtf", "cli", "tooling", "workflow")):
+        return f"{tool_name} plugin and tooling workflows"
+    if any(term in normalized_title for term in ("system prompt", "system prompted", "prompted to act")):
+        return f"{tool_name} system prompting behavior"
+    return None
+
+
+def _resolve_topic_summary(insight: Insight, *, topic_title: str) -> str:
+    normalized = topic_title.casefold()
+    if normalized == "hybrid claude code and codex workflows":
+        return "Threads focus on combining Claude Code and Codex in the same development workflow."
+    if normalized.endswith("permission model for headless automation"):
+        return "Threads focus on permission flags, unattended runs, and guardrails for headless automation."
+    if normalized.endswith("/review token usage spikes"):
+        return "Threads focus on unusually high token or usage costs during review-style workflows."
+    if normalized.endswith("plan and quota changes"):
+        return "Threads focus on usage limits, quotas, and plan changes affecting day-to-day coding workflows."
+    if normalized.endswith("plugin and tooling workflows"):
+        return "Threads focus on plugins, CLIs, and surrounding workflow tooling rather than the base model alone."
+    if normalized.endswith("system prompting behavior"):
+        return "Threads focus on how system prompting changes tool behavior in real coding workflows."
+    return insight.summary
+
+
+def _resolve_topic_relevance(insight: Insight, *, topic_title: str) -> str:
+    normalized = topic_title.casefold()
+    if normalized == "hybrid claude code and codex workflows":
+        return "Directly relevant if you compare or chain multiple coding agents in one workflow."
+    if normalized.endswith("permission model for headless automation"):
+        return "Useful if you want to run agents safely in unattended or automation-heavy environments."
+    if normalized.endswith("/review token usage spikes"):
+        return "Relevant to cost control and reliability when using agent review workflows at scale."
+    if normalized.endswith("plan and quota changes"):
+        return "Useful for planning tool usage, limits, and fallback strategies across agent-assisted development."
+    if normalized.endswith("plugin and tooling workflows"):
+        return "Useful for discovering workflow extensions and operational patterns around coding agents."
+    if normalized.endswith("system prompting behavior"):
+        return "Helpful for understanding why tool behavior changes and how much control the prompt layer has."
+    return insight.why_it_matters or insight.summary
