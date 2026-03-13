@@ -172,3 +172,33 @@ def test_collect_posts_can_include_secondary_subreddits(
     )
 
     assert [post.subreddit for post in result.posts] == ["Codex", "LocalLLaMA"]
+
+
+def test_collect_posts_normalizes_subreddit_to_configured_casing(
+    sample_posts_payload: list[dict[str, Any]],
+    tmp_path: Path,
+) -> None:
+    lowercase_codex = dict(sample_posts_payload[0])
+    lowercase_codex["subreddit"] = "codex"
+
+    collector = PostCollector(
+        StubPostSource(
+            {
+                ("Codex", "new"): [lowercase_codex],
+                ("ClaudeCode", "new"): [],
+                ("Codex", "top"): [],
+                ("ClaudeCode", "top"): [],
+            }
+        ),
+        tmp_path / "raw",
+        tmp_path / "processed",
+    )
+
+    result = collector.collect(
+        build_config(),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+    )
+
+    assert [post.subreddit for post in result.posts] == ["Codex"]
+    processed_payload = json.loads(result.processed_path.read_text())
+    assert processed_payload[0]["subreddit"] == "Codex"
