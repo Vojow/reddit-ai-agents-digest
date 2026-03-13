@@ -102,17 +102,30 @@ Thread collection only uses enabled subreddits from `config/subreddits.yaml`.
 Primary subreddits are always included, and secondary subreddits only
 participate when `INCLUDE_SECONDARY_SUBREDDITS=true`.
 
-The markdown digest is topic-oriented:
+The deterministic markdown digest remains the source of record:
+- `reports/daily/YYYY-MM-DD.md`
+- `reports/latest.md`
+
+When `OPENAI_API_KEY` is available, the pipeline can also write an LLM-enhanced
+variant of the same picked topics:
+- `reports/daily/YYYY-MM-DD.llm.md`
+- `reports/latest.llm.md`
+
+The markdown digest is topic-oriented in both variants:
 - `## Executive Summary` describes the day at a high level
 - `## Picked Topics` lists the top picked topics for the day
 - each topic includes:
   - executive summary
   - relevance for you
   - original post link
+  - source subreddit
+  - supporting thread count
+  - impact score
 
-Topics are derived from scored insights, while subreddit ranking is still used
-behind the scenes to keep source-post selection grounded in the configured
-subreddit set.
+Topic selection stays deterministic. The LLM-enhanced markdown only rewrites the
+prose of already-selected topics into cleaner wording. It does not choose
+topics, links, or source subreddits, and if the rewrite step is unavailable or
+fails the deterministic markdown still completes normally.
 
 ## Repository layout
 

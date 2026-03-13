@@ -14,6 +14,8 @@ Primary source subreddits for MVP:
 Primary outputs:
 - Daily Markdown digest in `reports/daily/YYYY-MM-DD.md`
 - Refreshed `reports/latest.md`
+- Optional LLM-enhanced digest in `reports/daily/YYYY-MM-DD.llm.md`
+- Optional refreshed `reports/latest.llm.md`
 - Structured export to Google Sheets
 - Optional OpenAI-generated "watch next" suggestions derived from the day's findings
 
@@ -37,21 +39,23 @@ Primary outputs:
 ## Digest rules
 Each daily digest should include:
 1. Executive summary
-2. Top tools mentioned
-3. Top approaches/workflows
-4. Top guides/resources
-5. Testing and quality insights
-6. Notable Reddit threads
-7. Emerging themes
-8. Optional "watch next" section
+2. Picked topics
+3. Emerging themes
+4. Optional "watch next" section
 
-For every notable item include:
+For every picked topic include:
 - title
-- subreddit
-- permalink
-- why it matters
+- executive summary
+- relevance for you
+- original post link
+- source subreddit
+- supporting thread count
 - impact score
-- extracted tags
+
+If the LLM-enhanced digest is generated:
+- it must use the same selected topics as the deterministic digest
+- it may only rewrite topic prose
+- it must not change topic titles, links, source subreddit attribution, scores, or counts
 
 ## Scoring guidance
 Prioritize:
@@ -71,6 +75,7 @@ Treat these as high priority:
 - silently swallowed exceptions
 - incorrect subreddit filtering
 - malformed Markdown digest structure
+- LLM rewriting that changes deterministic topic selection or source attribution
 - secrets leakage risk
 - changes that break deterministic output
 
