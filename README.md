@@ -41,7 +41,6 @@ uv run pytest
 - [Operations](docs/operations.md)
 - [Digest format](docs/digest-format.md)
 - [GCP WIF setup](docs/gcp-wif-setup.md)
-
 Copy `.env.example` to `.env` for local reference. The CLI now auto-loads
 `<repo>/.env` when it reads config. Exported shell variables still take
 precedence over values from `.env`.
