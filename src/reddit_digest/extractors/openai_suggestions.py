@@ -53,6 +53,12 @@ class TopicRewriteResult:
     rewrites: tuple[TopicRewrite, ...]
 
 
+@dataclass(frozen=True)
+class ExecutiveSummaryRewriteResult:
+    path: Path
+    executive_summary: str
+
+
 def generate_suggestions(
     client: OpenAITextClient,
     *,
@@ -87,6 +93,34 @@ def generate_suggestions(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps([item.to_dict() for item in suggestions], indent=2, sort_keys=True))
     return SuggestionResult(path=path, suggestions=suggestions)
+
+
+def generate_executive_summary_rewrite(
+    client: OpenAITextClient,
+    *,
+    model: str,
+    summary_payload: dict[str, object],
+    processed_root: Path,
+    run_date: str,
+) -> ExecutiveSummaryRewriteResult:
+    prompt = (
+        "You are rewriting the executive summary for an AI digest. "
+        "Use only the supplied deterministic digest data. "
+        "Do not add external facts or change the selected topics, represented subreddits, or counts. "
+        "Return strict JSON with a top-level key 'executive_summary' containing a concise 2-3 sentence summary string. "
+        f"Input payload:\n{json.dumps(summary_payload, indent=2, sort_keys=True)}"
+    )
+    output_text = client.create_text(
+        operation="rewrite_openai_executive_summary",
+        model=model,
+        input=prompt,
+    )
+    executive_summary = _parse_required_string(output_text, key="executive_summary")
+
+    path = processed_root / "executive_summary_rewrites" / f"{run_date}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"executive_summary": executive_summary}, indent=2, sort_keys=True))
+    return ExecutiveSummaryRewriteResult(path=path, executive_summary=executive_summary)
 
 
 def generate_topic_rewrites(
@@ -148,6 +182,19 @@ def _parse_response_items(output_text: str, *, list_key: str) -> list[dict[str, 
         if not isinstance(item, dict):
             raise OpenAIResponseError(f"OpenAI response item {index} in '{list_key}' must be an object")
     return items
+
+
+def _parse_required_string(output_text: str, *, key: str) -> str:
+    try:
+        parsed = json.loads(output_text)
+    except json.JSONDecodeError as exc:
+        raise OpenAIResponseError("OpenAI response must be valid JSON") from exc
+    if not isinstance(parsed, dict):
+        raise OpenAIResponseError("OpenAI response must be a JSON object")
+    value = parsed.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise OpenAIResponseError(f"OpenAI response must include a non-empty '{key}' string")
+    return value.strip()
 
 
 def _validate_topic_rewrites(

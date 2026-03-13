@@ -18,6 +18,7 @@ whether they are source-of-record or derived/advisory outputs.
   - `reports/daily/YYYY-MM-DD.llm.md`
   - `data/processed/suggestions/*.json`
   - `data/processed/topic_rewrites/*.json`
+  - `data/processed/executive_summary_rewrites/*.json`
   - Teams webhook payloads
 
 ## Raw artifact families
@@ -138,6 +139,16 @@ whether they are source-of-record or derived/advisory outputs.
   - must exactly cover the deterministic topic set for that run
   - may rewrite prose only
   - may not change titles, links, source subreddits, scores, or counts
+
+### `data/processed/executive_summary_rewrites/YYYY-MM-DD.json`
+
+- Type: single advisory object
+- Fields:
+  - `executive_summary`
+- Semantics:
+  - rewrites the top-level digest executive summary for the `.llm.md` variant only
+  - must stay grounded in the deterministic digest inputs for that run
+  - may not change selected topics, represented subreddits, or counts
 
 ## Run state
 

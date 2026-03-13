@@ -37,10 +37,10 @@ This is the contract reference for where behavior belongs in the pipeline.
 
 ## 4. OpenAI advisory stage
 
-- Responsibility: generate `Watch Next` suggestions and optional topic-prose rewrites
+- Responsibility: generate `Watch Next` suggestions plus optional executive-summary and topic-prose rewrites
 - Entry point: `OpenAIStage` in `src/reddit_digest/pipeline_stages.py`
 - Inputs: collected posts, analyzed insights, picked topics, OpenAI runtime config
-- Outputs: advisory watch-next strings, optional topic rewrites, warning text, OpenAI usage summary
+- Outputs: advisory watch-next strings, optional topic rewrites, optional executive summary rewrite, warning text, OpenAI usage summary
 - Status: advisory
 - Failure behavior:
   - quota/rate-limit errors degrade gracefully and preserve deterministic output

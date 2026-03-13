@@ -15,6 +15,7 @@ def test_artifact_schema_doc_covers_persisted_families_and_links() -> None:
     assert "data/processed/insights/YYYY-MM-DD.json" in document
     assert "data/processed/suggestions/YYYY-MM-DD.json" in document
     assert "data/processed/topic_rewrites/YYYY-MM-DD.json" in document
+    assert "data/processed/executive_summary_rewrites/YYYY-MM-DD.json" in document
     assert "data/state/YYYY-MM-DD.json" in document
     assert "Raw_Posts" in document
     assert "Insights" in document

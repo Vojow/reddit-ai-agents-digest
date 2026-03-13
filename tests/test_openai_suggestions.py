@@ -6,6 +6,7 @@ import json
 import pytest
 
 from reddit_digest.extractors.openai_suggestions import OpenAIResponseError
+from reddit_digest.extractors.openai_suggestions import generate_executive_summary_rewrite
 from reddit_digest.extractors.openai_suggestions import generate_suggestions
 from reddit_digest.extractors.openai_suggestions import generate_topic_rewrites
 from reddit_digest.models.insight import Insight
@@ -43,6 +44,10 @@ def _suggestions_client() -> FakeClient:
 
 def _rewrite_client(*, items: list[dict[str, object]]) -> FakeClient:
     return FakeClient(json.dumps({"topic_rewrites": items}))
+
+
+def _executive_summary_client(*, summary: str) -> FakeClient:
+    return FakeClient(json.dumps({"executive_summary": summary}))
 
 
 def _sample_topics() -> tuple[dict[str, object], ...]:
@@ -242,6 +247,42 @@ def test_generate_topic_rewrites_requires_topic_rewrites_list(tmp_path: Path) ->
             FakeClient(json.dumps({"rewrites": []})),
             model="gpt-5-mini",
             topics=_sample_topics(),
+            processed_root=tmp_path,
+            run_date="2026-03-12",
+        )
+
+
+def test_generate_executive_summary_rewrite_persists_structured_output(tmp_path: Path) -> None:
+    result = generate_executive_summary_rewrite(
+        _executive_summary_client(
+            summary=(
+                "Three topics stand out across Codex, ClaudeCode, and Vibecoding, led by headless-agent safety "
+                "and tooling workflow discussions."
+            )
+        ),
+        model="gpt-5-mini",
+        summary_payload={
+            "run_date": "2026-03-12",
+            "total_posts": 12,
+            "represented_subreddits": ("Codex", "ClaudeCode"),
+            "top_topic_title": "Claude Code permission model for headless automation",
+            "topics": _sample_topics(),
+        },
+        processed_root=tmp_path,
+        run_date="2026-03-12",
+    )
+
+    assert result.executive_summary.startswith("Three topics stand out")
+    assert result.path.exists()
+    assert json.loads(result.path.read_text())["executive_summary"].startswith("Three topics stand out")
+
+
+def test_generate_executive_summary_rewrite_requires_summary_string(tmp_path: Path) -> None:
+    with pytest.raises(OpenAIResponseError, match="'executive_summary' string"):
+        generate_executive_summary_rewrite(
+            FakeClient(json.dumps({"summary": "wrong key"})),
+            model="gpt-5-mini",
+            summary_payload={"topics": _sample_topics()},
             processed_root=tmp_path,
             run_date="2026-03-12",
         )

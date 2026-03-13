@@ -55,7 +55,7 @@ For every picked topic include:
 
 If the LLM-enhanced digest is generated:
 - it must use the same selected topics as the deterministic digest
-- it may only rewrite topic prose
+- it may only rewrite the top-level executive summary and topic prose
 - it must not change topic titles, links, source subreddit attribution, scores, or counts
 
 ## Scoring guidance

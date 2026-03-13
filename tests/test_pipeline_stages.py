@@ -166,6 +166,7 @@ def test_openai_stage_returns_warning_and_skips_rewrites_on_quota_error(tmp_path
         build_openai_client=lambda _runtime: FakeOpenAIClient(),
         generate_suggestions=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("insufficient_quota")),
         generate_topic_rewrites=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not run")),
+        generate_executive_summary_rewrite=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not run")),
         build_suggestion_warning=lambda exc: f"warning:{exc}",
         build_rewrite_warning=lambda exc: f"rewrite:{exc}",
     )
@@ -201,6 +202,7 @@ def test_openai_stage_returns_warning_and_skips_rewrites_on_quota_error(tmp_path
     assert result == OpenAIArtifacts(
         watch_next=(),
         topic_rewrites={},
+        executive_summary_rewrite=None,
         warnings=("warning:insufficient_quota",),
         usage=usage,
     )
@@ -252,6 +254,7 @@ def test_render_stage_returns_digest_and_optional_llm_variant(tmp_path: Path) ->
         OpenAIArtifacts(
             watch_next=("Track tomorrow",),
             topic_rewrites={"topic_1": ("summary", "relevance")},
+            executive_summary_rewrite="Three workflow-specific topics stand out across Codex today.",
             warnings=("warning",),
             usage=OpenAIUsageSummary.empty(),
         ),
@@ -262,6 +265,7 @@ def test_render_stage_returns_digest_and_optional_llm_variant(tmp_path: Path) ->
     assert result.llm_markdown is not None
     assert result.llm_markdown.daily_path.name == "2026-03-12.llm.md"
     assert calls[0]["warnings"] == ("warning",)
+    assert calls[1]["executive_summary_rewrite"] == "Three workflow-specific topics stand out across Codex today."
     assert calls[1]["variant_suffix"] == "llm"
 
 
@@ -311,6 +315,7 @@ def test_delivery_stage_handles_optional_exports_and_teams_publish(tmp_path: Pat
         OpenAIArtifacts(
             watch_next=("Track tomorrow",),
             topic_rewrites={},
+            executive_summary_rewrite=None,
             warnings=("warning",),
             usage=OpenAIUsageSummary.empty(),
         ),
@@ -417,6 +422,7 @@ def test_state_stage_writes_run_state_from_stage_artifacts(tmp_path: Path) -> No
         OpenAIArtifacts(
             watch_next=(),
             topic_rewrites={},
+            executive_summary_rewrite=None,
             warnings=(),
             usage=OpenAIUsageSummary.empty(),
         ),

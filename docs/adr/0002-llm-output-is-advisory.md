@@ -9,9 +9,10 @@ source attribution need to remain inspectable and deterministic.
 
 ## Decision
 
-OpenAI output is advisory only. It may generate `Watch Next` suggestions and
-rewrite topic prose, but it must not choose same-day topics or alter
-deterministic topic titles, links, subreddit attribution, counts, or scores.
+OpenAI output is advisory only. It may generate `Watch Next` suggestions,
+rewrite the top-level executive summary, and rewrite topic prose, but it must
+not choose same-day topics or alter deterministic topic titles, links,
+subreddit attribution, counts, or scores.
 
 ## Consequences
 
