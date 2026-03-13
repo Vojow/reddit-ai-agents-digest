@@ -20,6 +20,7 @@ from reddit_digest.config import RuntimeConfig
 from reddit_digest.config import ScoringConfig
 from reddit_digest.models.insight import Insight
 from reddit_digest.models.post import Post
+from reddit_digest.outputs.digest import DigestArtifact
 from reddit_digest.ranking.impact import score_insight
 from reddit_digest.ranking.impact import score_post
 
@@ -77,7 +78,7 @@ class GoogleSheetsExporter:
         run_date: str,
         posts: tuple[Post, ...],
         insights: tuple[Insight, ...],
-        markdown_content: str,
+        digest: DigestArtifact,
         scoring: ScoringConfig,
         lookback_hours: int,
         run_at: datetime | None = None,
@@ -85,7 +86,7 @@ class GoogleSheetsExporter:
         effective_run_at = run_at or datetime.now(tz=UTC)
         raw_post_rows = _build_raw_post_rows(posts, scoring, run_date=run_date, lookback_hours=lookback_hours, run_at=effective_run_at)
         insight_rows = _build_insight_rows(insights, scoring, run_date=run_date)
-        digest_row = _build_daily_digest_row(run_date=run_date, posts=posts, insights=insights, markdown_content=markdown_content)
+        digest_row = _build_daily_digest_row(digest)
 
         self._upsert_rows(RAW_POSTS_TAB, RAW_POST_HEADERS, run_date, raw_post_rows)
         self._upsert_rows(INSIGHTS_TAB, INSIGHT_HEADERS, run_date, insight_rows)
@@ -225,43 +226,18 @@ def _build_insight_rows(insights: tuple[Insight, ...], scoring: ScoringConfig, *
 
 
 def _build_daily_digest_row(
-    *,
-    run_date: str,
-    posts: tuple[Post, ...],
-    insights: tuple[Insight, ...],
-    markdown_content: str,
+    digest: DigestArtifact,
 ) -> dict[str, Any]:
-    top_thread = posts[0] if posts else None
-    top_by_category = {category: "" for category in ("tools", "approaches", "guides", "testing")}
-    for insight in insights:
-        if not top_by_category.get(insight.category):
-            top_by_category[insight.category] = insight.title
-
-    watch_next_lines = _extract_watch_next_lines(markdown_content)
+    top_thread = digest.top_thread
     return {
-        "run_date": run_date,
-        "total_posts": len(posts),
-        "total_insights": len(insights),
+        "run_date": digest.run_date,
+        "total_posts": digest.total_posts,
+        "total_insights": digest.total_insights,
         "top_thread_title": "" if top_thread is None else top_thread.title,
         "top_thread_url": "" if top_thread is None else top_thread.url,
-        "top_tool": top_by_category["tools"],
-        "top_approach": top_by_category["approaches"],
-        "top_guide": top_by_category["guides"],
-        "top_testing_insight": top_by_category["testing"],
-        "watch_next": " | ".join(watch_next_lines[:3]),
+        "top_tool": digest.top_tool,
+        "top_approach": digest.top_approach,
+        "top_guide": digest.top_guide,
+        "top_testing_insight": digest.top_testing_insight,
+        "watch_next": " | ".join(digest.watch_next[:3]),
     }
-
-
-def _extract_watch_next_lines(markdown_content: str) -> list[str]:
-    lines = markdown_content.splitlines()
-    in_watch_next = False
-    collected: list[str] = []
-    for line in lines:
-        if line == "## Watch Next":
-            in_watch_next = True
-            continue
-        if in_watch_next and line.startswith("## "):
-            break
-        if in_watch_next and line.startswith("- "):
-            collected.append(line[2:])
-    return collected
