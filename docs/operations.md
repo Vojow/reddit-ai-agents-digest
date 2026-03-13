@@ -27,6 +27,7 @@ Local development differs from CI:
 Optional environment variables:
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
+- `TEAMS_WEBHOOK_URL`
 - `INCLUDE_SECONDARY_SUBREDDITS`
 - `LOOKBACK_HOURS`
 - `MIN_POST_SCORE`
@@ -79,6 +80,14 @@ uv run reddit-digest run-daily --date 2026-03-12
 - Run state: `data/state/YYYY-MM-DD.json`
 - Latest run state mirror: `data/state/latest.json`
 
+When `TEAMS_WEBHOOK_URL` is configured, the pipeline also sends a best-effort
+Teams summary that includes:
+- report paths for the deterministic and preferred report variants
+- top picked topics
+- emerging theme labels
+- watch-next items
+- OpenAI token usage totals for the run
+
 ## Google Sheets tabs
 
 When Sheets export is enabled, the exporter rewrites these tabs idempotently by
@@ -111,6 +120,8 @@ When Sheets export is enabled, the exporter rewrites these tabs idempotently by
 - When OpenAI suggestions are unavailable, `Watch Next` falls back to up to
   three insights marked `new`.
 - Sheets export replaces existing rows for the same `run_date`.
+- Teams delivery is advisory-only. A webhook failure is recorded in run state
+  and logged as a warning, but it does not fail the deterministic pipeline.
 - The latest completed state is mirrored into `data/state/latest.json`.
 
 ## GitHub Actions

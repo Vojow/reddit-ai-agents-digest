@@ -54,6 +54,7 @@ Additional environment variables for local Sheets export:
 Optional runtime environment variables:
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (defaults to `gpt-5-mini`)
+- `TEAMS_WEBHOOK_URL`
 
 Google Sheets authentication for local runs can come from:
 - Application Default Credentials
@@ -82,6 +83,10 @@ Supported runtime overrides:
 If `OPENAI_API_KEY` is set, the pipeline will also generate additive `Watch Next`
 content suggestions and candidate new sources based only on the day’s collected
 findings.
+
+If `TEAMS_WEBHOOK_URL` is set, the pipeline also posts an advisory Teams summary
+after local report generation. Teams delivery is best-effort and does not
+replace the deterministic markdown as the source of record.
 
 For MVP ingestion, Reddit app credentials are not required. The live collectors
 use Reddit's public JSON endpoints with a configurable `REDDIT_USER_AGENT`.
@@ -148,3 +153,6 @@ The project uses a `src/` layout and stores:
 - normalized artifacts in `data/processed/`
 - run state in `data/state/`
 - generated reports in `reports/`
+
+Run state now also records OpenAI token usage totals plus Teams publish status
+for the completed run.
