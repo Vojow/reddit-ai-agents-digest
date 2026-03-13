@@ -29,101 +29,88 @@ class TeamsTopicSummary:
     impact_score: float
 
 
+@dataclass(frozen=True)
+class TeamsDigestPayload:
+    run_date: str
+    warnings: tuple[str, ...]
+    topics: tuple[TeamsTopicSummary, ...]
+    emerging_themes: tuple[str, ...]
+    watch_next: tuple[str, ...]
+    openai_usage: OpenAIUsageSummary
+    selected_report_variant: str
+    preferred_executive_summary: str | None
+
+
 def publish_digest_to_teams(
     webhook_url: str,
+    payload: TeamsDigestPayload,
     *,
-    run_date: str,
-    warnings: tuple[str, ...],
-    topics: tuple[TeamsTopicSummary, ...],
-    emerging_themes: tuple[str, ...],
-    watch_next: tuple[str, ...],
-    openai_usage: OpenAIUsageSummary,
-    selected_report_variant: str,
-    preferred_executive_summary: str | None,
     session: SessionLike | None = None,
 ) -> None:
     http_session = session or requests.Session()
-    payload = build_teams_payload(
-        run_date=run_date,
-        warnings=warnings,
-        topics=topics,
-        emerging_themes=emerging_themes,
-        watch_next=watch_next,
-        openai_usage=openai_usage,
-        selected_report_variant=selected_report_variant,
-        preferred_executive_summary=preferred_executive_summary,
-    )
-    response = http_session.post(webhook_url, json=payload, timeout=20)
+    response = http_session.post(webhook_url, json=build_teams_payload(payload), timeout=20)
     response.raise_for_status()
 
 
-def build_teams_payload(
-    *,
-    run_date: str,
-    warnings: tuple[str, ...],
-    topics: tuple[TeamsTopicSummary, ...],
-    emerging_themes: tuple[str, ...],
-    watch_next: tuple[str, ...],
-    openai_usage: OpenAIUsageSummary,
-    selected_report_variant: str,
-    preferred_executive_summary: str | None,
-) -> dict[str, Any]:
+def build_teams_payload(payload: TeamsDigestPayload) -> dict[str, Any]:
     sections: list[dict[str, Any]] = [
         {
             "activityTitle": "Report",
             "facts": [
-                {"name": "Run date", "value": run_date},
-                {"name": "Selected report", "value": selected_report_variant},
+                {"name": "Run date", "value": payload.run_date},
+                {"name": "Selected report", "value": payload.selected_report_variant},
                 *(
-                    [{"name": "Executive summary", "value": preferred_executive_summary}]
-                    if preferred_executive_summary is not None
+                    [{"name": "Executive summary", "value": payload.preferred_executive_summary}]
+                    if payload.preferred_executive_summary is not None
                     else []
                 ),
             ],
         },
         {
             "activityTitle": "Top Topics",
-            "facts": _build_topic_facts(topics),
+            "facts": _build_topic_facts(payload.topics),
         },
         {
             "activityTitle": "Emerging Themes",
             "facts": [
-                {"name": "Themes", "value": ", ".join(emerging_themes)}
+                {"name": "Themes", "value": ", ".join(payload.emerging_themes)}
             ]
-            if emerging_themes
+            if payload.emerging_themes
             else [{"name": "Themes", "value": "No emerging themes today."}],
         },
         {
             "activityTitle": "Watch Next",
-            "facts": _build_watch_next_facts(watch_next),
+            "facts": _build_watch_next_facts(payload.watch_next),
         },
         {
             "activityTitle": "OpenAI Usage",
             "facts": [
-                {"name": "Calls", "value": str(openai_usage.total_calls)},
-                {"name": "Input tokens", "value": str(openai_usage.input_tokens)},
-                {"name": "Output tokens", "value": str(openai_usage.output_tokens)},
-                {"name": "Total tokens", "value": str(openai_usage.total_tokens)},
+                {"name": "Calls", "value": str(payload.openai_usage.total_calls)},
+                {"name": "Input tokens", "value": str(payload.openai_usage.input_tokens)},
+                {"name": "Output tokens", "value": str(payload.openai_usage.output_tokens)},
+                {"name": "Total tokens", "value": str(payload.openai_usage.total_tokens)},
             ],
         },
     ]
-    if warnings:
+    if payload.warnings:
         sections.insert(
             1,
             {
                 "activityTitle": "Warnings",
-                "text": "<br>".join(warnings),
+                "text": "<br>".join(payload.warnings),
             },
         )
 
     return {
         "@type": "MessageCard",
         "@context": "https://schema.org/extensions",
-        "summary": f"Daily Reddit Digest — {run_date}",
-        "themeColor": "D83B01" if warnings else "0078D4",
-        "title": f"Daily Reddit Digest — {run_date}",
+        "summary": f"Daily Reddit Digest — {payload.run_date}",
+        "themeColor": "D83B01" if payload.warnings else "0078D4",
+        "title": f"Daily Reddit Digest — {payload.run_date}",
         "sections": sections,
     }
+
+
 def _build_topic_facts(topics: tuple[TeamsTopicSummary, ...]) -> list[dict[str, str]]:
     if not topics:
         return [{"name": "Topics", "value": "No picked topics today."}]

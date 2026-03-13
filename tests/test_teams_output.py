@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from reddit_digest.models.openai_usage import OpenAIOperationUsage
 from reddit_digest.models.openai_usage import OpenAIUsageSummary
+from reddit_digest.outputs.teams import TeamsDigestPayload
 from reddit_digest.outputs.teams import TeamsTopicSummary
 from reddit_digest.outputs.teams import build_teams_payload
 from reddit_digest.outputs.teams import extract_executive_summary
@@ -24,53 +25,55 @@ class FakeSession:
 
 def test_build_teams_payload_includes_variant_summary_and_usage() -> None:
     payload = build_teams_payload(
-        run_date="2026-03-12",
-        warnings=("OPENAI QUOTA EXHAUSTED",),
-        topics=(
-            TeamsTopicSummary(
-                title="Agent Memory Patterns",
-                source_url="https://reddit.com/r/Codex/comments/post_001",
-                subreddit="Codex",
-                impact_score=8.75,
-            ),
-            TeamsTopicSummary(
-                title="Eval Harnesses",
-                source_url="https://reddit.com/r/ClaudeCode/comments/post_002",
-                subreddit="ClaudeCode",
-                impact_score=7.5,
-            ),
-            TeamsTopicSummary(
-                title="CI Permission Guardrails",
-                source_url="https://reddit.com/r/Vibecoding/comments/post_003",
-                subreddit="Vibecoding",
-                impact_score=7.25,
-            ),
-            TeamsTopicSummary(
-                title="Budget Caps in Headless Runs",
-                source_url="https://reddit.com/r/Codex/comments/post_004",
-                subreddit="Codex",
-                impact_score=7.1,
-            ),
-        ),
-        emerging_themes=("ai-agents", "testing"),
-        watch_next=("Prompt-state snapshots", "Plan drift monitors"),
-        openai_usage=OpenAIUsageSummary(
-            total_calls=2,
-            input_tokens=120,
-            output_tokens=40,
-            total_tokens=160,
-            operations=(
-                OpenAIOperationUsage(
-                    operation="generate_openai_suggestions",
-                    calls=1,
-                    input_tokens=70,
-                    output_tokens=20,
-                    total_tokens=90,
+        TeamsDigestPayload(
+            run_date="2026-03-12",
+            warnings=("OPENAI QUOTA EXHAUSTED",),
+            topics=(
+                TeamsTopicSummary(
+                    title="Agent Memory Patterns",
+                    source_url="https://reddit.com/r/Codex/comments/post_001",
+                    subreddit="Codex",
+                    impact_score=8.75,
+                ),
+                TeamsTopicSummary(
+                    title="Eval Harnesses",
+                    source_url="https://reddit.com/r/ClaudeCode/comments/post_002",
+                    subreddit="ClaudeCode",
+                    impact_score=7.5,
+                ),
+                TeamsTopicSummary(
+                    title="CI Permission Guardrails",
+                    source_url="https://reddit.com/r/Vibecoding/comments/post_003",
+                    subreddit="Vibecoding",
+                    impact_score=7.25,
+                ),
+                TeamsTopicSummary(
+                    title="Budget Caps in Headless Runs",
+                    source_url="https://reddit.com/r/Codex/comments/post_004",
+                    subreddit="Codex",
+                    impact_score=7.1,
                 ),
             ),
-        ),
-        selected_report_variant="LLM-enhanced",
-        preferred_executive_summary="Three workflow-specific topics stand out across Codex and ClaudeCode today.",
+            emerging_themes=("ai-agents", "testing"),
+            watch_next=("Prompt-state snapshots", "Plan drift monitors"),
+            openai_usage=OpenAIUsageSummary(
+                total_calls=2,
+                input_tokens=120,
+                output_tokens=40,
+                total_tokens=160,
+                operations=(
+                    OpenAIOperationUsage(
+                        operation="generate_openai_suggestions",
+                        calls=1,
+                        input_tokens=70,
+                        output_tokens=20,
+                        total_tokens=90,
+                    ),
+                ),
+            ),
+            selected_report_variant="LLM-enhanced",
+            preferred_executive_summary="Three workflow-specific topics stand out across Codex and ClaudeCode today.",
+        )
     )
 
     assert payload["title"] == "Daily Reddit Digest — 2026-03-12"
@@ -102,21 +105,23 @@ def test_publish_digest_to_teams_posts_expected_payload() -> None:
 
     publish_digest_to_teams(
         "https://contoso.example/webhook",
-        run_date="2026-03-12",
-        warnings=(),
-        topics=(
-            TeamsTopicSummary(
-                title="Agent Memory Patterns",
-                source_url="https://reddit.com/r/Codex/comments/post_001",
-                subreddit="Codex",
-                impact_score=8.75,
+        TeamsDigestPayload(
+            run_date="2026-03-12",
+            warnings=(),
+            topics=(
+                TeamsTopicSummary(
+                    title="Agent Memory Patterns",
+                    source_url="https://reddit.com/r/Codex/comments/post_001",
+                    subreddit="Codex",
+                    impact_score=8.75,
+                ),
             ),
+            emerging_themes=("ai-agents",),
+            watch_next=("Prompt-state snapshots",),
+            openai_usage=OpenAIUsageSummary.empty(),
+            selected_report_variant="Deterministic",
+            preferred_executive_summary=None,
         ),
-        emerging_themes=("ai-agents",),
-        watch_next=("Prompt-state snapshots",),
-        openai_usage=OpenAIUsageSummary.empty(),
-        selected_report_variant="Deterministic",
-        preferred_executive_summary=None,
         session=session,
     )
 

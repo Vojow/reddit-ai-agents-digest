@@ -5,10 +5,12 @@ import json
 
 import pytest
 
+from reddit_digest.extractors.openai_suggestions import ExecutiveSummaryRewriteRequest
 from reddit_digest.extractors.openai_suggestions import OpenAIResponseError
 from reddit_digest.extractors.openai_suggestions import generate_executive_summary_rewrite
 from reddit_digest.extractors.openai_suggestions import generate_suggestions
 from reddit_digest.extractors.openai_suggestions import generate_topic_rewrites
+from reddit_digest.extractors.openai_suggestions import TopicRewriteRequest
 from reddit_digest.models.insight import Insight
 from reddit_digest.models.post import Post
 
@@ -50,30 +52,30 @@ def _executive_summary_client(*, summary: str) -> FakeClient:
     return FakeClient(json.dumps({"executive_summary": summary}))
 
 
-def _sample_topics() -> tuple[dict[str, object], ...]:
+def _sample_topics() -> tuple[TopicRewriteRequest, ...]:
     return (
-        {
-            "topic_key": "topic_1",
-            "title": "Codex",
-            "executive_summary": "Codex appears across the day's threads.",
-            "relevance_for_user": "Useful for your AI-assisted development feed.",
-            "source_title": "Codex agent keeps a local context file for every task",
-            "source_subreddit": "Codex",
-            "source_url": "https://reddit.com/r/Codex/comments/post_001",
-            "impact_score": 8.7,
-            "support_count": 3,
-        },
-        {
-            "topic_key": "topic_2",
-            "title": "Claude Code",
-            "executive_summary": "Claude Code threads focus on real repo editing workflows.",
-            "relevance_for_user": "Relevant to AI-enhanced development and testing.",
-            "source_title": "Claude Code repo automation",
-            "source_subreddit": "ClaudeCode",
-            "source_url": "https://reddit.com/r/ClaudeCode/comments/post_002",
-            "impact_score": 7.8,
-            "support_count": 2,
-        },
+        TopicRewriteRequest(
+            topic_key="topic_1",
+            title="Codex",
+            executive_summary="Codex appears across the day's threads.",
+            relevance_for_user="Useful for your AI-assisted development feed.",
+            source_title="Codex agent keeps a local context file for every task",
+            source_subreddit="Codex",
+            source_url="https://reddit.com/r/Codex/comments/post_001",
+            impact_score=8.7,
+            support_count=3,
+        ),
+        TopicRewriteRequest(
+            topic_key="topic_2",
+            title="Claude Code",
+            executive_summary="Claude Code threads focus on real repo editing workflows.",
+            relevance_for_user="Relevant to AI-enhanced development and testing.",
+            source_title="Claude Code repo automation",
+            source_subreddit="ClaudeCode",
+            source_url="https://reddit.com/r/ClaudeCode/comments/post_002",
+            impact_score=7.8,
+            support_count=2,
+        ),
     )
 
 
@@ -174,7 +176,7 @@ def test_generate_topic_rewrites_persists_structured_output(tmp_path: Path) -> N
     result = generate_topic_rewrites(
         _rewrite_client(items=_sample_rewrites()),
         model="gpt-5-mini",
-        topics=_sample_topics(),
+        requests=_sample_topics(),
         processed_root=tmp_path,
         run_date="2026-03-12",
     )
@@ -190,7 +192,7 @@ def test_generate_topic_rewrites_requires_full_topic_coverage(tmp_path: Path) ->
         generate_topic_rewrites(
             _rewrite_client(items=_sample_rewrites(include_second=False)),
             model="gpt-5-mini",
-            topics=_sample_topics(),
+            requests=_sample_topics(),
             processed_root=tmp_path,
             run_date="2026-03-12",
         )
@@ -210,7 +212,7 @@ def test_generate_topic_rewrites_rejects_unknown_topic_keys(tmp_path: Path) -> N
                 ]
             ),
             model="gpt-5-mini",
-            topics=_sample_topics(),
+            requests=_sample_topics(),
             processed_root=tmp_path,
             run_date="2026-03-12",
         )
@@ -235,7 +237,7 @@ def test_generate_topic_rewrites_rejects_duplicate_topic_keys(tmp_path: Path) ->
                 ]
             ),
             model="gpt-5-mini",
-            topics=_sample_topics(),
+            requests=_sample_topics(),
             processed_root=tmp_path,
             run_date="2026-03-12",
         )
@@ -246,7 +248,7 @@ def test_generate_topic_rewrites_requires_topic_rewrites_list(tmp_path: Path) ->
         generate_topic_rewrites(
             FakeClient(json.dumps({"rewrites": []})),
             model="gpt-5-mini",
-            topics=_sample_topics(),
+            requests=_sample_topics(),
             processed_root=tmp_path,
             run_date="2026-03-12",
         )
@@ -261,13 +263,13 @@ def test_generate_executive_summary_rewrite_persists_structured_output(tmp_path:
             )
         ),
         model="gpt-5-mini",
-        summary_payload={
-            "run_date": "2026-03-12",
-            "total_posts": 12,
-            "represented_subreddits": ("Codex", "ClaudeCode"),
-            "top_topic_title": "Claude Code permission model for headless automation",
-            "topics": _sample_topics(),
-        },
+        request=ExecutiveSummaryRewriteRequest(
+            run_date="2026-03-12",
+            total_posts=12,
+            represented_subreddits=("Codex", "ClaudeCode"),
+            top_topic_title="Claude Code permission model for headless automation",
+            topics=_sample_topics(),
+        ),
         processed_root=tmp_path,
         run_date="2026-03-12",
     )
@@ -282,7 +284,13 @@ def test_generate_executive_summary_rewrite_requires_summary_string(tmp_path: Pa
         generate_executive_summary_rewrite(
             FakeClient(json.dumps({"summary": "wrong key"})),
             model="gpt-5-mini",
-            summary_payload={"topics": _sample_topics()},
+            request=ExecutiveSummaryRewriteRequest(
+                run_date="2026-03-12",
+                total_posts=2,
+                represented_subreddits=("Codex", "ClaudeCode"),
+                top_topic_title="Topic One",
+                topics=_sample_topics(),
+            ),
             processed_root=tmp_path,
             run_date="2026-03-12",
         )

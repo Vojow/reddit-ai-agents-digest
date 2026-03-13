@@ -54,9 +54,53 @@ class TopicRewriteResult:
 
 
 @dataclass(frozen=True)
+class TopicRewriteRequest:
+    topic_key: str
+    title: str
+    executive_summary: str
+    relevance_for_user: str
+    source_title: str
+    source_subreddit: str
+    source_url: str
+    impact_score: float
+    support_count: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "topic_key": self.topic_key,
+            "title": self.title,
+            "executive_summary": self.executive_summary,
+            "relevance_for_user": self.relevance_for_user,
+            "source_title": self.source_title,
+            "source_subreddit": self.source_subreddit,
+            "source_url": self.source_url,
+            "impact_score": self.impact_score,
+            "support_count": self.support_count,
+        }
+
+
+@dataclass(frozen=True)
 class ExecutiveSummaryRewriteResult:
     path: Path
     executive_summary: str
+
+
+@dataclass(frozen=True)
+class ExecutiveSummaryRewriteRequest:
+    run_date: str
+    total_posts: int
+    represented_subreddits: tuple[str, ...]
+    top_topic_title: str | None
+    topics: tuple[TopicRewriteRequest, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "run_date": self.run_date,
+            "total_posts": self.total_posts,
+            "represented_subreddits": list(self.represented_subreddits),
+            "top_topic_title": self.top_topic_title,
+            "topics": [topic.to_dict() for topic in self.topics],
+        }
 
 
 def generate_suggestions(
@@ -99,7 +143,7 @@ def generate_executive_summary_rewrite(
     client: OpenAITextClient,
     *,
     model: str,
-    summary_payload: dict[str, object],
+    request: ExecutiveSummaryRewriteRequest,
     processed_root: Path,
     run_date: str,
 ) -> ExecutiveSummaryRewriteResult:
@@ -108,7 +152,7 @@ def generate_executive_summary_rewrite(
         "Use only the supplied deterministic digest data. "
         "Do not add external facts or change the selected topics, represented subreddits, or counts. "
         "Return strict JSON with a top-level key 'executive_summary' containing a concise 2-3 sentence summary string. "
-        f"Input payload:\n{json.dumps(summary_payload, indent=2, sort_keys=True)}"
+        f"Input payload:\n{json.dumps(request.to_dict(), indent=2, sort_keys=True)}"
     )
     output_text = client.create_text(
         operation="rewrite_openai_executive_summary",
@@ -127,7 +171,7 @@ def generate_topic_rewrites(
     client: OpenAITextClient,
     *,
     model: str,
-    topics: tuple[dict[str, object], ...],
+    requests: tuple[TopicRewriteRequest, ...],
     processed_root: Path,
     run_date: str,
 ) -> TopicRewriteResult:
@@ -138,7 +182,7 @@ def generate_topic_rewrites(
         "Return strict JSON with a top-level key 'topic_rewrites' containing one item per input topic. "
         "Each item must include: topic_key, executive_summary, relevance_for_user. "
         "Keep topic_key exactly as provided. "
-        f"Input payload:\n{json.dumps({'topics': topics}, indent=2, sort_keys=True)}"
+        f"Input payload:\n{json.dumps({'topics': [request.to_dict() for request in requests]}, indent=2, sort_keys=True)}"
     )
     output_text = client.create_text(
         operation="rewrite_openai_topics",
@@ -147,7 +191,7 @@ def generate_topic_rewrites(
     )
     items = _parse_response_items(output_text, list_key="topic_rewrites")
     rewrites = tuple(TopicRewrite.from_raw(item) for item in items)
-    _validate_topic_rewrites(rewrites, topics=topics)
+    _validate_topic_rewrites(rewrites, requests=requests)
 
     path = processed_root / "topic_rewrites" / f"{run_date}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -200,14 +244,9 @@ def _parse_required_string(output_text: str, *, key: str) -> str:
 def _validate_topic_rewrites(
     rewrites: tuple[TopicRewrite, ...],
     *,
-    topics: tuple[dict[str, object], ...],
+    requests: tuple[TopicRewriteRequest, ...],
 ) -> None:
-    expected_keys = []
-    for topic in topics:
-        topic_key = topic.get("topic_key")
-        if not isinstance(topic_key, str) or not topic_key:
-            raise OpenAIResponseError("Each topic must include a non-empty string 'topic_key'")
-        expected_keys.append(topic_key)
+    expected_keys = [request.topic_key for request in requests]
 
     actual_keys = [item.topic_key for item in rewrites]
     duplicate_keys = sorted({key for key in actual_keys if actual_keys.count(key) > 1})

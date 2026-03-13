@@ -6,16 +6,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from reddit_digest.config import ScoringConfig
-from reddit_digest.models.insight import Insight
-from reddit_digest.outputs.digest import build_digest_artifact
 from reddit_digest.outputs.digest import DigestArtifact
-from reddit_digest.outputs.digest import EmergingTheme
 from reddit_digest.outputs.digest import RankedTopic
-from reddit_digest.outputs.digest import select_digest_topics
-from reddit_digest.outputs.digest import select_emerging_themes as _select_emerging_themes
-from reddit_digest.outputs.digest import select_watch_next_items as _select_watch_next_items
-from reddit_digest.ranking.threads import ThreadSelection
 
 
 @dataclass(frozen=True)
@@ -27,40 +19,29 @@ class MarkdownDigestResult:
 
 def render_markdown_digest(
     *,
-    run_date: str,
-    insights: tuple[Insight, ...],
-    scoring: ScoringConfig,
-    thread_selection: ThreadSelection,
+    digest: DigestArtifact,
     reports_root: Path,
-    watch_next: tuple[str, ...] = (),
     warnings: tuple[str, ...] = (),
-    topics: tuple[RankedTopic, ...] | None = None,
-    digest: DigestArtifact | None = None,
     topic_rewrites: Mapping[str, tuple[str, str]] | None = None,
     executive_summary_rewrite: str | None = None,
     variant_suffix: str = "",
 ) -> MarkdownDigestResult:
-    artifact = digest or build_digest_artifact(
-        run_date=run_date,
-        insights=insights,
-        scoring=scoring,
-        thread_selection=thread_selection,
-        watch_next=watch_next,
-        topics=topics,
-    )
-
-    lines = [f"# Daily Reddit Digest — {run_date}", ""]
+    lines = [f"# Daily Reddit Digest — {digest.run_date}", ""]
     if warnings:
         lines.extend(_render_warnings(warnings))
-    lines.extend(_render_executive_summary(artifact, executive_summary_rewrite=executive_summary_rewrite))
-    lines.extend(_render_picked_topics(artifact.topics, topic_rewrites=topic_rewrites))
-    lines.extend(_render_emerging_themes(artifact))
-    watch_next_lines = _render_watch_next(artifact)
+    lines.extend(_render_executive_summary(digest, executive_summary_rewrite=executive_summary_rewrite))
+    lines.extend(_render_picked_topics(digest.topics, topic_rewrites=topic_rewrites))
+    lines.extend(_render_emerging_themes(digest))
+    watch_next_lines = _render_watch_next(digest)
     if watch_next_lines:
         lines.extend(watch_next_lines)
 
     content = "\n".join(lines).strip() + "\n"
-    daily_path, latest_path = _build_output_paths(reports_root=reports_root, run_date=run_date, variant_suffix=variant_suffix)
+    daily_path, latest_path = _build_output_paths(
+        reports_root=reports_root,
+        run_date=digest.run_date,
+        variant_suffix=variant_suffix,
+    )
     daily_path.parent.mkdir(parents=True, exist_ok=True)
     daily_path.write_text(content)
     latest_path.write_text(content)
@@ -154,16 +135,3 @@ def _build_output_paths(*, reports_root: Path, run_date: str, variant_suffix: st
     daily_path = reports_root / "daily" / f"{run_date}{suffix}.md"
     latest_path = reports_root / f"latest{suffix}.md"
     return daily_path, latest_path
-
-
-def select_watch_next_items(*, watch_next: tuple[str, ...], insights: tuple[Insight, ...]) -> tuple[str, ...]:
-    return _select_watch_next_items(watch_next=watch_next, insights=insights)
-
-
-def select_emerging_themes(
-    *,
-    insights: tuple[Insight, ...],
-    scoring: ScoringConfig,
-    limit: int = 3,
-) -> tuple[EmergingTheme, ...]:
-    return _select_emerging_themes(insights=insights, scoring=scoring, limit=limit)
