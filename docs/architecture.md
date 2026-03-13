@@ -72,23 +72,13 @@ src/reddit_digest/
 
 - Normalized typed models sit between collection and downstream processing.
 - Each stage writes its own output instead of relying on in-memory-only flow.
-- The deterministic markdown is the source-of-record report for a run.
-- The OpenAI step is advisory only. It can influence `Watch Next` and rewrite
-  topic prose, but it does not create same-day Reddit findings or choose topics.
-- The LLM markdown variant is best-effort and never replaces the deterministic
-  report path in run state.
-- MVP ingestion uses public Reddit JSON endpoints and only requires a user agent.
 - Thread ranking uses only enabled subreddits and keeps the existing score
   formula for source-post selection.
 - Picked topics are rendered from scored insights with source links from the
   ranked enabled-subreddit post set.
-- GitHub Actions authenticates to Google Sheets via GitHub OIDC and Workload
-  Identity Federation; local runs can still use ADC or a local JSON fallback.
-- The current GitHub Actions workflow is markdown-only on a `self-hosted`
-  runner; GitHub-hosted runners are unsupported for live Reddit collection.
-- Google Sheets export is idempotent by `run_date`.
-- Re-running the same date overwrites file outputs and state rather than
-  creating duplicates.
+
+The main architectural constraints and tradeoffs now live in the ADR index:
+[`docs/adr/README.md`](adr/README.md).
 
 ## Current gaps
 
