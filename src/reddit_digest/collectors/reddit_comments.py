@@ -6,13 +6,14 @@ from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
-import json
 from typing import Any
 from typing import Protocol
 
 from praw.models import Submission
 import requests
 
+from reddit_digest.collectors.shared import PublicRedditTransport
+from reddit_digest.collectors.shared import write_json_artifact
 from reddit_digest.config import RuntimeConfig
 from reddit_digest.models.base import ModelError
 from reddit_digest.models.comment import Comment
@@ -66,20 +67,17 @@ class PrawRedditCommentSource:
 class PublicRedditCommentSource:
     """Live Reddit comment source backed by public JSON endpoints."""
 
-    def __init__(self, runtime: RuntimeConfig, *, session: requests.Session | None = None) -> None:
-        self._session = session or requests.Session()
-        self._session.headers.update(
-            {
-                "User-Agent": runtime.reddit_user_agent or "reddit-ai-agents-digest/0.1.0",
-                "Accept": "application/json",
-            }
-        )
+    def __init__(
+        self,
+        runtime: RuntimeConfig,
+        *,
+        session: requests.Session | None = None,
+        transport: PublicRedditTransport | None = None,
+    ) -> None:
+        self._transport = transport or PublicRedditTransport(runtime, session=session)
 
     def fetch_comments(self, post: Post, limit: int) -> list[dict[str, Any]]:
-        url = f"https://www.reddit.com/comments/{post.id}.json"
-        response = self._session.get(url, params={"limit": limit, "raw_json": 1}, timeout=20)
-        response.raise_for_status()
-        payload = response.json()
+        payload = self._transport.get_json(f"/comments/{post.id}.json", params={"limit": limit, "raw_json": 1})
         if not isinstance(payload, list) or len(payload) < 2:
             return []
         return self._flatten_comment_listing(payload[1], post=post)[:limit]
@@ -162,8 +160,8 @@ class CommentCollector:
                 self._normalize_comments(raw_comments, max_comments_per_post=max_comments_per_post)
             )
 
-        raw_path = self._write_json(self._raw_root / "comments" / f"{run_date}.json", raw_payload)
-        processed_path = self._write_json(
+        raw_path = write_json_artifact(self._raw_root / "comments" / f"{run_date}.json", raw_payload)
+        processed_path = write_json_artifact(
             self._processed_root / "comments" / f"{run_date}.json",
             [comment.to_dict() for comment in normalized_comments],
         )
@@ -187,8 +185,3 @@ class CommentCollector:
             if len(normalized) >= max_comments_per_post:
                 break
         return normalized
-
-    def _write_json(self, path: Path, payload: Any) -> Path:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True))
-        return path
