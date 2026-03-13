@@ -33,6 +33,7 @@ def runtime() -> RuntimeConfig:
         reddit_user_agent="reddit-ai-agents-digest/0.1.0",
         openai_api_key=None,
         openai_model="gpt-5-mini",
+        teams_webhook_url=None,
         gcp_workload_identity_provider=None,
         gcp_service_account_email=None,
         google_service_account_json=None,

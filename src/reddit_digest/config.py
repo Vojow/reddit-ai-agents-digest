@@ -53,6 +53,7 @@ class RuntimeConfig:
     reddit_user_agent: str | None
     openai_api_key: str | None
     openai_model: str
+    teams_webhook_url: str | None
     gcp_workload_identity_provider: str | None
     gcp_service_account_email: str | None
     google_service_account_json: str | None
@@ -329,6 +330,7 @@ def load_runtime_config(
         reddit_user_agent=_env_optional("REDDIT_USER_AGENT", env),
         openai_api_key=_env_optional("OPENAI_API_KEY", env),
         openai_model=_env_optional("OPENAI_MODEL", env) or "gpt-5-mini",
+        teams_webhook_url=_env_optional("TEAMS_WEBHOOK_URL", env),
         gcp_workload_identity_provider=_env_optional("GCP_WORKLOAD_IDENTITY_PROVIDER", env),
         gcp_service_account_email=_env_optional("GCP_SERVICE_ACCOUNT_EMAIL", env),
         google_service_account_json=_env_optional("GOOGLE_SERVICE_ACCOUNT_JSON", env),

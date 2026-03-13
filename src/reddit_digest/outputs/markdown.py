@@ -7,11 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from reddit_digest.config import ScoringConfig
+from reddit_digest.models.insight import Insight
 from reddit_digest.outputs.digest import build_digest_artifact
 from reddit_digest.outputs.digest import DigestArtifact
+from reddit_digest.outputs.digest import EmergingTheme
 from reddit_digest.outputs.digest import RankedTopic
 from reddit_digest.outputs.digest import select_digest_topics
-from reddit_digest.models.insight import Insight
+from reddit_digest.outputs.digest import select_emerging_themes as _select_emerging_themes
+from reddit_digest.outputs.digest import select_watch_next_items as _select_watch_next_items
 from reddit_digest.ranking.threads import ThreadSelection
 
 
@@ -144,3 +147,16 @@ def _build_output_paths(*, reports_root: Path, run_date: str, variant_suffix: st
     daily_path = reports_root / "daily" / f"{run_date}{suffix}.md"
     latest_path = reports_root / f"latest{suffix}.md"
     return daily_path, latest_path
+
+
+def select_watch_next_items(*, watch_next: tuple[str, ...], insights: tuple[Insight, ...]) -> tuple[str, ...]:
+    return _select_watch_next_items(watch_next=watch_next, insights=insights)
+
+
+def select_emerging_themes(
+    *,
+    insights: tuple[Insight, ...],
+    scoring: ScoringConfig,
+    limit: int = 3,
+) -> tuple[EmergingTheme, ...]:
+    return _select_emerging_themes(insights=insights, scoring=scoring, limit=limit)

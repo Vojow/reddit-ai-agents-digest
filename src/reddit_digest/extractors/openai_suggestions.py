@@ -6,27 +6,15 @@ from dataclasses import dataclass
 from pathlib import Path
 import json
 from typing import Any
-from typing import Protocol
 
-from openai import OpenAI
-
-from reddit_digest.config import RuntimeConfig
 from reddit_digest.models.insight import Insight
 from reddit_digest.models.post import Post
 from reddit_digest.models.suggestion import Suggestion
+from reddit_digest.openai_client import OpenAITextClient
 
 
 class OpenAIResponseError(ValueError):
     """Raised when the OpenAI response does not satisfy the expected schema."""
-
-
-class ResponsesClient(Protocol):
-    def create(self, **kwargs: Any) -> Any:
-        ...
-
-
-class OpenAIClient(Protocol):
-    responses: ResponsesClient
 
 
 @dataclass(frozen=True)
@@ -65,12 +53,8 @@ class TopicRewriteResult:
     rewrites: tuple[TopicRewrite, ...]
 
 
-def build_openai_client(runtime: RuntimeConfig) -> OpenAIClient:
-    return OpenAI(api_key=runtime.openai_api_key)
-
-
 def generate_suggestions(
-    client: OpenAIClient,
+    client: OpenAITextClient,
     *,
     model: str,
     posts: tuple[Post, ...],
@@ -91,11 +75,12 @@ def generate_suggestions(
         "Use 'source' for new subreddits or topics worth watching next. "
         f"Input payload:\n{json.dumps(payload, indent=2, sort_keys=True)}"
     )
-    response = client.responses.create(
+    output_text = client.create_text(
+        operation="generate_openai_suggestions",
         model=model,
         input=prompt,
     )
-    items = _parse_response_items(response.output_text, list_key="suggestions")
+    items = _parse_response_items(output_text, list_key="suggestions")
     suggestions = tuple(Suggestion.from_raw(item) for item in items)
 
     path = processed_root / "suggestions" / f"{run_date}.json"
@@ -105,7 +90,7 @@ def generate_suggestions(
 
 
 def generate_topic_rewrites(
-    client: OpenAIClient,
+    client: OpenAITextClient,
     *,
     model: str,
     topics: tuple[dict[str, object], ...],
@@ -121,11 +106,12 @@ def generate_topic_rewrites(
         "Keep topic_key exactly as provided. "
         f"Input payload:\n{json.dumps({'topics': topics}, indent=2, sort_keys=True)}"
     )
-    response = client.responses.create(
+    output_text = client.create_text(
+        operation="rewrite_openai_topics",
         model=model,
         input=prompt,
     )
-    items = _parse_response_items(response.output_text, list_key="topic_rewrites")
+    items = _parse_response_items(output_text, list_key="topic_rewrites")
     rewrites = tuple(TopicRewrite.from_raw(item) for item in items)
     _validate_topic_rewrites(rewrites, topics=topics)
 
