@@ -96,21 +96,23 @@ re-enable Google Sheets export in self-hosted CI, use the setup runbook in
 [`docs/gcp-wif-setup.md`](docs/gcp-wif-setup.md).
 Google Sheets export in CI is currently disabled by design.
 
-## Digest ranking behavior
+## Digest behavior
 
-Thread ranking only uses enabled subreddits from `config/subreddits.yaml`.
+Thread collection only uses enabled subreddits from `config/subreddits.yaml`.
 Primary subreddits are always included, and secondary subreddits only
 participate when `INCLUDE_SECONDARY_SUBREDDITS=true`.
 
-The digest renders:
-- `## Notable Threads` as a diversified global top 5 across enabled
-  subreddits
-- `## Top Threads By Subreddit` as the top 3 threads for each enabled
-  subreddit
+The markdown digest is topic-oriented:
+- `## Executive Summary` describes the day at a high level
+- `## Picked Topics` lists the top picked topics for the day
+- each topic includes:
+  - executive summary
+  - relevance for you
+  - original post link
 
-The global top 5 uses the existing deterministic score formula and applies a
-minimal diversity rule: if ranked candidates exist in more than one enabled
-subreddit, the final top 5 will include at least 2 distinct subreddits.
+Topics are derived from scored insights, while subreddit ranking is still used
+behind the scenes to keep source-post selection grounded in the configured
+subreddit set.
 
 ## Repository layout
 

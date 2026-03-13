@@ -210,3 +210,23 @@ def test_select_threads_handles_fewer_than_five_total_candidates() -> None:
 
     assert len(selection.notable_threads) == 3
     assert {item.post.subreddit for item in selection.notable_threads} == {"Codex", "ClaudeCode"}
+
+
+def test_select_threads_matches_subreddits_case_insensitively() -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    posts = (
+        build_post(post_id="a1", subreddit="codex", title="codex 1", score=95, num_comments=28),
+        build_post(post_id="b1", subreddit="vibecoding", title="vibecoding 1", score=90, num_comments=24),
+        build_post(post_id="c1", subreddit="ClaudeCode", title="ClaudeCode 1", score=85, num_comments=20),
+    )
+
+    selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex", "Vibecoding", "ClaudeCode"),
+        run_at=RUN_AT,
+        lookback_hours=24,
+    )
+
+    assert {item.post.subreddit for item in selection.ranked_posts} == {"codex", "vibecoding", "ClaudeCode"}
+    assert tuple(group.subreddit for group in selection.by_subreddit) == ("Codex", "Vibecoding", "ClaudeCode")

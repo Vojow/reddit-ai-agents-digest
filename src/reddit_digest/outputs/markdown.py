@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from collections import Counter
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
 from reddit_digest.config import ScoringConfig
 from reddit_digest.models.insight import Insight
 from reddit_digest.ranking.impact import score_insight
-from reddit_digest.ranking.threads import RankedPost
 from reddit_digest.ranking.threads import ThreadSelection
 
 
@@ -20,6 +21,19 @@ class MarkdownDigestResult:
     content: str
 
 
+@dataclass(frozen=True)
+class RankedTopic:
+    topic_key: str
+    title: str
+    executive_summary: str
+    relevance_for_user: str
+    source_title: str
+    source_url: str
+    source_subreddit: str
+    impact_score: float
+    support_count: int
+
+
 def render_markdown_digest(
     *,
     run_date: str,
@@ -28,127 +42,131 @@ def render_markdown_digest(
     thread_selection: ThreadSelection,
     reports_root: Path,
     watch_next: tuple[str, ...] = (),
+    topics: tuple[RankedTopic, ...] | None = None,
+    topic_rewrites: Mapping[str, tuple[str, str]] | None = None,
+    variant_suffix: str = "",
 ) -> MarkdownDigestResult:
     scored_insights = sorted(
         [(insight, score_insight(insight, scoring)) for insight in insights],
         key=lambda item: (item[0].category, -item[1].total, item[0].title, item[0].source_id),
     )
+    selected_topics = topics or select_digest_topics(
+        insights=insights,
+        scoring=scoring,
+        thread_selection=thread_selection,
+    )
 
     lines = [f"# Daily Reddit Digest — {run_date}", ""]
-    lines.extend(_render_executive_summary(thread_selection, scored_insights))
-    lines.extend(_render_insight_section("Top Tools Mentioned", "tools", scored_insights))
-    lines.extend(_render_insight_section("Top Approaches / Workflows", "approaches", scored_insights))
-    lines.extend(_render_insight_section("Top Guides / Resources", "guides", scored_insights))
-    lines.extend(_render_insight_section("Testing and Quality Insights", "testing", scored_insights))
-    lines.extend(_render_notable_threads(thread_selection, scored_insights))
-    lines.extend(_render_threads_by_subreddit(thread_selection, scored_insights))
+    lines.extend(_render_executive_summary(thread_selection, selected_topics))
+    lines.extend(_render_picked_topics(selected_topics, topic_rewrites=topic_rewrites))
     lines.extend(_render_emerging_themes(scored_insights))
     watch_next_lines = _render_watch_next(watch_next=watch_next, scored_insights=scored_insights)
     if watch_next_lines:
         lines.extend(watch_next_lines)
 
     content = "\n".join(lines).strip() + "\n"
-    daily_path = reports_root / "daily" / f"{run_date}.md"
-    latest_path = reports_root / "latest.md"
+    daily_path, latest_path = _build_output_paths(reports_root=reports_root, run_date=run_date, variant_suffix=variant_suffix)
     daily_path.parent.mkdir(parents=True, exist_ok=True)
     daily_path.write_text(content)
     latest_path.write_text(content)
     return MarkdownDigestResult(daily_path=daily_path, latest_path=latest_path, content=content)
 
 
-def _render_executive_summary(thread_selection: ThreadSelection, scored_insights: list[tuple[Insight, object]]) -> list[str]:
-    top_post = thread_selection.ranked_posts[0].post if thread_selection.ranked_posts else None
-    represented = tuple(dict.fromkeys(item.post.subreddit for item in thread_selection.notable_threads))
-    top_insights = [insight.title for insight, _ in scored_insights[:2]]
+def select_digest_topics(
+    *,
+    insights: tuple[Insight, ...],
+    scoring: ScoringConfig,
+    thread_selection: ThreadSelection,
+    limit: int = 6,
+) -> tuple[RankedTopic, ...]:
+    scored_insights = sorted(
+        [(insight, score_insight(insight, scoring)) for insight in insights],
+        key=lambda item: (item[0].category, -item[1].total, item[0].title, item[0].source_id),
+    )
+    grouped: dict[tuple[str, str], list[tuple[Insight, object]]] = defaultdict(list)
+    for insight, breakdown in scored_insights:
+        grouped[(insight.category, insight.title.casefold())].append((insight, breakdown))
+
+    post_lookup = {ranked.post.id: ranked.post for ranked in thread_selection.ranked_posts}
+    topics: list[RankedTopic] = []
+    for entries in grouped.values():
+        best_insight, best_breakdown = sorted(
+            entries,
+            key=lambda item: (-item[1].total, item[0].title, item[0].source_id),
+        )[0]
+        source_post = post_lookup.get(best_insight.source_post_id)
+        source_title = source_post.title if source_post is not None else best_insight.title
+        source_url = source_post.url if source_post is not None else best_insight.source_permalink
+        source_subreddit = source_post.subreddit if source_post is not None else best_insight.subreddit
+        support_count = len({insight.source_post_id for insight, _ in entries})
+        topics.append(
+            RankedTopic(
+                topic_key="",
+                title=best_insight.title,
+                executive_summary=best_insight.summary,
+                relevance_for_user=best_insight.why_it_matters or best_insight.summary,
+                source_title=source_title,
+                source_url=source_url,
+                source_subreddit=source_subreddit,
+                impact_score=best_breakdown.total,
+                support_count=support_count,
+            )
+        )
+
+    ordered_topics = sorted(topics, key=lambda item: (-item.impact_score, item.title, item.source_url))[:limit]
+    return tuple(
+        RankedTopic(
+            topic_key=f"topic_{index}",
+            title=topic.title,
+            executive_summary=topic.executive_summary,
+            relevance_for_user=topic.relevance_for_user,
+            source_title=topic.source_title,
+            source_url=topic.source_url,
+            source_subreddit=topic.source_subreddit,
+            impact_score=topic.impact_score,
+            support_count=topic.support_count,
+        )
+        for index, topic in enumerate(ordered_topics, start=1)
+    )
+
+
+def _render_executive_summary(thread_selection: ThreadSelection, topics: tuple[RankedTopic, ...]) -> list[str]:
+    represented = tuple(dict.fromkeys(item.post.subreddit for item in thread_selection.ranked_posts))
+    top_topic = topics[0] if topics else None
     bullets = [
         "## Executive Summary",
-        *(f"- Headline thread: {top_post.title} (r/{top_post.subreddit})" for _ in [0] if top_post is not None),
-        *(f"- Global top threads span {len(represented)} subreddit(s): {', '.join(f'r/{name}' for name in represented)}" for _ in [0] if represented),
-        *(f"- Leading insights: {', '.join(top_insights)}" for _ in [0] if top_insights),
+        *(f"- Picked {len(topics)} topics from {len(represented)} subreddit(s): {', '.join(f'r/{name}' for name in represented)}" for _ in [0] if represented),
+        *(f"- Highest-signal topic: {top_topic.title}" for _ in [0] if top_topic is not None),
         f"- Total posts analyzed: {len(thread_selection.ranked_posts)}",
-        f"- Total insights extracted: {len(scored_insights)}",
         "",
     ]
     return bullets
 
 
-def _render_insight_section(
-    heading: str,
-    category: str,
-    scored_insights: list[tuple[Insight, object]],
-) -> list[str]:
-    lines = [f"## {heading}"]
-    matching = [(insight, breakdown) for insight, breakdown in scored_insights if insight.category == category][:3]
-    if not matching:
-        lines.append("- No significant items today.")
-        lines.append("")
-        return lines
-
-    for insight, breakdown in matching:
-        lines.append(f"- {insight.title}")
-        lines.append(f"  - Why it matters: {insight.why_it_matters or insight.summary}")
-        lines.append(f"  - Source threads: 1")
-        lines.append(f"  - Impact score: {breakdown.total:.2f}")
-    lines.append("")
-    return lines
-
-
-def _render_notable_threads(
-    thread_selection: ThreadSelection,
-    scored_insights: list[tuple[Insight, object]],
-) -> list[str]:
-    lines = ["## Notable Threads"]
-    if not thread_selection.notable_threads:
-        lines.append("- No notable threads today.")
-        lines.append("")
-        return lines
-
-    for ranked_post in thread_selection.notable_threads:
-        lines.extend(_render_thread_details(ranked_post, scored_insights=scored_insights, include_subreddit=True))
-    lines.append("")
-    return lines
-
-
-def _render_threads_by_subreddit(
-    thread_selection: ThreadSelection,
-    scored_insights: list[tuple[Insight, object]],
-) -> list[str]:
-    lines = ["## Top Threads By Subreddit"]
-    if not thread_selection.by_subreddit:
-        lines.append("- No subreddit-specific thread rankings today.")
-        lines.append("")
-        return lines
-
-    for group in thread_selection.by_subreddit:
-        lines.append(f"### r/{group.subreddit}")
-        if not group.posts:
-            lines.append("- No notable threads today.")
-            lines.append("")
-            continue
-        for ranked_post in group.posts:
-            lines.extend(_render_thread_details(ranked_post, scored_insights=scored_insights, include_subreddit=False))
-        lines.append("")
-    return lines
-
-
-def _render_thread_details(
-    ranked_post: RankedPost,
+def _render_picked_topics(
+    topics: tuple[RankedTopic, ...],
     *,
-    scored_insights: list[tuple[Insight, object]],
-    include_subreddit: bool,
+    topic_rewrites: Mapping[str, tuple[str, str]] | None = None,
 ) -> list[str]:
-    post = ranked_post.post
-    related = [insight for insight, _ in scored_insights if insight.source_post_id == post.id]
-    why_it_matters = related[0].why_it_matters if related and related[0].why_it_matters else "Relevant discussion for AI-assisted development workflows."
-    tags = sorted({tag for insight in related for tag in insight.tags})
-    summary = (post.selftext or post.title).strip()
-    lines = [f"- [{post.title}]({post.url})"]
-    if include_subreddit:
-        lines.append(f"  - Subreddit: r/{post.subreddit}")
-    lines.append(f"  - Summary: {summary}")
-    lines.append(f"  - Why it matters: {why_it_matters}")
-    lines.append(f"  - Impact score: {ranked_post.breakdown.total:.2f}")
-    lines.append(f"  - Extracted tags: {', '.join(tags) if tags else 'none'}")
+    lines = ["## Picked Topics"]
+    if not topics:
+        lines.append("- No picked topics today.")
+        lines.append("")
+        return lines
+
+    for index, topic in enumerate(topics, start=1):
+        executive_summary = topic.executive_summary
+        relevance_for_user = topic.relevance_for_user
+        if topic_rewrites and topic.topic_key in topic_rewrites:
+            executive_summary, relevance_for_user = topic_rewrites[topic.topic_key]
+        lines.append(f"### {index}. {topic.title}")
+        lines.append(f"- Executive summary: {executive_summary}")
+        lines.append(f"- Relevance for you: {relevance_for_user}")
+        lines.append(f"- Original post: [{topic.source_title}]({topic.source_url})")
+        lines.append(f"- Source subreddit: r/{topic.source_subreddit}")
+        lines.append(f"- Supporting threads: {topic.support_count}")
+        lines.append(f"- Impact score: {topic.impact_score:.2f}")
+        lines.append("")
     return lines
 
 
@@ -184,3 +202,10 @@ def _render_watch_next(
         lines.append(f"- {item}")
     lines.append("")
     return lines
+
+
+def _build_output_paths(*, reports_root: Path, run_date: str, variant_suffix: str) -> tuple[Path, Path]:
+    suffix = f".{variant_suffix}" if variant_suffix else ""
+    daily_path = reports_root / "daily" / f"{run_date}{suffix}.md"
+    latest_path = reports_root / f"latest{suffix}.md"
+    return daily_path, latest_path

@@ -1,60 +1,34 @@
 # Daily Reddit Digest — 2026-03-12
 
 ## Executive Summary
-- Headline thread: Codex agent keeps a local context file for every task (r/Codex)
-- Global top threads span 2 subreddit(s): r/Codex, r/ClaudeCode
-- Leading insights: Codex, Test-first refactors
+- Picked 3 topics from 2 subreddit(s): r/Codex, r/ClaudeCode
+- Highest-signal topic: Codex
+- Total posts analyzed: 2
 
-## Top Tools Mentioned
-- Codex
-  - Why it matters: strong fit for repo-aware task execution
-  - Source threads: 1
-  - Impact score: 8.7
+## Picked Topics
+### 1. Codex
+- Executive summary: Codex is being used as an agentic coding tool in real workflows.
+- Relevance for you: strong fit for repo-aware task execution
+- Original post: [Codex agent keeps a local context file for every task](https://reddit.com/r/Codex/comments/post_001)
+- Source subreddit: r/Codex
+- Supporting threads: 1
+- Impact score: 8.70
 
-## Top Approaches / Workflows
-- Test-first refactors
-  - Why it matters: reduces breakage during agent-assisted changes
-  - Source threads: 1
-  - Impact score: 8.2
+### 2. Test-first refactors
+- Executive summary: Test-first prompting is being used to reduce breakage during agent-assisted changes.
+- Relevance for you: reduces breakage during agent-assisted changes
+- Original post: [Claude Code workflow for test-first refactors](https://reddit.com/r/ClaudeCode/comments/post_002)
+- Source subreddit: r/ClaudeCode
+- Supporting threads: 1
+- Impact score: 8.20
 
-## Top Guides / Resources
-- Local context snapshots
-  - Why it matters: improves prompt recovery across sessions
-  - Source threads: 1
-  - Impact score: 7.9
-
-## Testing and Quality Insights
-- Snapshot markdown tests catch formatting regressions early
-  - Why it matters: deterministic output remains enforceable
-  - Source threads: 1
-  - Impact score: 7.8
-
-## Notable Threads
-- [Codex agent keeps a local context file for every task](https://reddit.com/r/Codex/comments/post_001)
-  - Subreddit: r/Codex
-  - Summary: practitioners are storing context locally between runs
-  - Why it matters: durable context improves iterative agent work
-  - Impact score: 8.7
-- [Claude Code workflow for test-first refactors](https://reddit.com/r/ClaudeCode/comments/post_002)
-  - Subreddit: r/ClaudeCode
-  - Summary: extracting fixtures before editing production code improves safety
-  - Why it matters: test-first prompting reduces breakage in agent-assisted changes
-  - Impact score: 8.2
-
-## Top Threads By Subreddit
-### r/Codex
-- [Codex agent keeps a local context file for every task](https://reddit.com/r/Codex/comments/post_001)
-  - Summary: practitioners are storing context locally between runs
-  - Why it matters: durable context improves iterative agent work
-  - Impact score: 8.7
-  - Extracted tags: ai-agents, context-management
-
-### r/ClaudeCode
-- [Claude Code workflow for test-first refactors](https://reddit.com/r/ClaudeCode/comments/post_002)
-  - Summary: extracting fixtures before editing production code improves safety
-  - Why it matters: test-first prompting reduces breakage in agent-assisted changes
-  - Impact score: 8.2
-  - Extracted tags: testing, workflow
+### 3. Snapshot markdown tests
+- Executive summary: Snapshot-style output tests are being used to catch formatting regressions.
+- Relevance for you: deterministic output remains enforceable
+- Original post: [Codex agent keeps a local context file for every task](https://reddit.com/r/Codex/comments/post_001)
+- Source subreddit: r/Codex
+- Supporting threads: 1
+- Impact score: 7.80
 
 ## Emerging Themes
 - More teams are treating prompt stability as a testing problem.

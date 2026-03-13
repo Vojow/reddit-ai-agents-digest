@@ -13,11 +13,13 @@ from reddit_digest.collectors.reddit_comments import PublicRedditCommentSource
 from reddit_digest.collectors.reddit_posts import PostCollector
 from reddit_digest.collectors.reddit_posts import PublicRedditPostSource
 from reddit_digest.config import load_config
-from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
-from reddit_digest.outputs.markdown import render_markdown_digest
-from reddit_digest.extractors.service import extract_insights
 from reddit_digest.extractors.openai_suggestions import build_openai_client
 from reddit_digest.extractors.openai_suggestions import generate_suggestions
+from reddit_digest.extractors.openai_suggestions import generate_topic_rewrites
+from reddit_digest.extractors.service import extract_insights
+from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
+from reddit_digest.outputs.markdown import render_markdown_digest
+from reddit_digest.outputs.markdown import select_digest_topics
 from reddit_digest.ranking.novelty import apply_novelty
 from reddit_digest.ranking.threads import select_threads
 from reddit_digest.utils.retries import retry_call
@@ -71,11 +73,26 @@ class PipelineRunner:
             run_date=run_date,
         )
         novelty = apply_novelty(self.base_path / "data" / "processed", run_date=run_date, insights=extracted.insights)
+        thread_selection = select_threads(
+            post_result.posts,
+            scoring=config.scoring,
+            enabled_subreddits=config.subreddits.enabled_subreddits,
+            run_at=run_at,
+            lookback_hours=config.subreddits.fetch.lookback_hours,
+        )
+        digest_topics = select_digest_topics(
+            insights=novelty.insights,
+            scoring=config.scoring,
+            thread_selection=thread_selection,
+        )
+
         suggestions = ()
+        openai_client = None
         if config.runtime.openai_api_key:
+            openai_client = build_openai_client(config.runtime)
             suggestion_result = retry_call(
                 lambda: generate_suggestions(
-                    build_openai_client(config.runtime),
+                    openai_client,
                     model=config.runtime.openai_model,
                     posts=post_result.posts,
                     insights=novelty.insights,
@@ -86,13 +103,6 @@ class PipelineRunner:
                 logger=LOGGER,
             )
             suggestions = tuple(f"{item.title}: {item.rationale}" for item in suggestion_result.suggestions)
-        thread_selection = select_threads(
-            post_result.posts,
-            scoring=config.scoring,
-            enabled_subreddits=config.subreddits.enabled_subreddits,
-            run_at=run_at,
-            lookback_hours=config.subreddits.fetch.lookback_hours,
-        )
         markdown = render_markdown_digest(
             run_date=run_date,
             insights=novelty.insights,
@@ -100,7 +110,53 @@ class PipelineRunner:
             thread_selection=thread_selection,
             reports_root=self.base_path / "reports",
             watch_next=suggestions,
+            topics=digest_topics,
         )
+        if openai_client is not None and digest_topics:
+            try:
+                rewrite_result = retry_call(
+                    lambda: generate_topic_rewrites(
+                        openai_client,
+                        model=config.runtime.openai_model,
+                        topics=tuple(
+                            {
+                                "topic_key": topic.topic_key,
+                                "title": topic.title,
+                                "executive_summary": topic.executive_summary,
+                                "relevance_for_user": topic.relevance_for_user,
+                                "source_title": topic.source_title,
+                                "source_subreddit": topic.source_subreddit,
+                                "source_url": topic.source_url,
+                                "impact_score": topic.impact_score,
+                                "support_count": topic.support_count,
+                            }
+                            for topic in digest_topics
+                        ),
+                        processed_root=self.base_path / "data" / "processed",
+                        run_date=run_date,
+                    ),
+                    operation="rewrite_openai_topics",
+                    logger=LOGGER,
+                )
+            except Exception:
+                LOGGER.warning("Skipping LLM markdown variant for %s after topic rewrite failure", run_date, exc_info=True)
+            else:
+                topic_rewrites = {
+                    item.topic_key: (item.executive_summary, item.relevance_for_user)
+                    for item in rewrite_result.rewrites
+                }
+                if topic_rewrites:
+                    render_markdown_digest(
+                        run_date=run_date,
+                        insights=novelty.insights,
+                        scoring=config.scoring,
+                        thread_selection=thread_selection,
+                        reports_root=self.base_path / "reports",
+                        watch_next=suggestions,
+                        topics=digest_topics,
+                        topic_rewrites=topic_rewrites,
+                        variant_suffix="llm",
+                    )
 
         sheets_exported = False
         if not skip_sheets:

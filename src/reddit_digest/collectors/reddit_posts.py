@@ -179,7 +179,7 @@ class PostCollector:
                         continue
                     if post.num_comments < config.fetch.min_comments:
                         continue
-                    deduped[post.id] = post.to_dict()
+                    deduped[post.id] = {**post.to_dict(), "subreddit": subreddit}
 
             selected = sorted(
                 deduped.values(),

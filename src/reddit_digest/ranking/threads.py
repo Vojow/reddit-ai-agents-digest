@@ -41,7 +41,7 @@ def select_threads(
     per_subreddit_limit: int = 3,
 ) -> ThreadSelection:
     enabled = tuple(dict.fromkeys(enabled_subreddits))
-    enabled_set = set(enabled)
+    enabled_lookup = {subreddit.casefold(): subreddit for subreddit in enabled}
     ranked_posts = tuple(
         sorted(
             (
@@ -50,7 +50,7 @@ def select_threads(
                     breakdown=score_post(post, scoring, run_at=run_at, lookback_hours=lookback_hours),
                 )
                 for post in posts
-                if post.subreddit in enabled_set
+                if post.subreddit.casefold() in enabled_lookup
             ),
             key=lambda item: (-item.breakdown.total, item.post.subreddit.lower(), item.post.id),
         )
@@ -59,10 +59,12 @@ def select_threads(
     by_subreddit = tuple(
         SubredditThreadRanking(
             subreddit=subreddit,
-            posts=tuple(ranked for ranked in ranked_posts if ranked.post.subreddit == subreddit)[:per_subreddit_limit],
+            posts=tuple(ranked for ranked in ranked_posts if ranked.post.subreddit.casefold() == subreddit.casefold())[
+                :per_subreddit_limit
+            ],
         )
         for subreddit in enabled
-        if any(ranked.post.subreddit == subreddit for ranked in ranked_posts)
+        if any(ranked.post.subreddit.casefold() == subreddit.casefold() for ranked in ranked_posts)
     )
 
     return ThreadSelection(

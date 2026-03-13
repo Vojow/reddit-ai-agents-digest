@@ -31,6 +31,36 @@ class SuggestionResult:
     suggestions: tuple[Suggestion, ...]
 
 
+@dataclass(frozen=True)
+class TopicRewrite:
+    topic_key: str
+    executive_summary: str
+    relevance_for_user: str
+
+    @classmethod
+    def from_raw(cls, payload: dict[str, Any]) -> "TopicRewrite":
+        topic_key = payload.get("topic_key")
+        executive_summary = payload.get("executive_summary")
+        relevance_for_user = payload.get("relevance_for_user")
+        if not isinstance(topic_key, str) or not topic_key:
+            raise ValueError("'topic_key' must be a non-empty string")
+        if not isinstance(executive_summary, str) or not executive_summary:
+            raise ValueError("'executive_summary' must be a non-empty string")
+        if not isinstance(relevance_for_user, str) or not relevance_for_user:
+            raise ValueError("'relevance_for_user' must be a non-empty string")
+        return cls(
+            topic_key=topic_key,
+            executive_summary=executive_summary,
+            relevance_for_user=relevance_for_user,
+        )
+
+
+@dataclass(frozen=True)
+class TopicRewriteResult:
+    path: Path
+    rewrites: tuple[TopicRewrite, ...]
+
+
 def build_openai_client(runtime: RuntimeConfig) -> OpenAIClient:
     return OpenAI(api_key=runtime.openai_api_key)
 
@@ -68,3 +98,46 @@ def generate_suggestions(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps([item.to_dict() for item in suggestions], indent=2, sort_keys=True))
     return SuggestionResult(path=path, suggestions=suggestions)
+
+
+def generate_topic_rewrites(
+    client: OpenAIClient,
+    *,
+    model: str,
+    topics: tuple[dict[str, object], ...],
+    processed_root: Path,
+    run_date: str,
+) -> TopicRewriteResult:
+    prompt = (
+        "You are rewriting prose for an AI digest. "
+        "Do not change the chosen topics, titles, links, subreddit names, scores, or counts. "
+        "Use only the supplied topic data. Do not add new claims or external facts. "
+        "Return strict JSON with a top-level key 'topic_rewrites' containing one item per input topic. "
+        "Each item must include: topic_key, executive_summary, relevance_for_user. "
+        "Keep topic_key exactly as provided. "
+        f"Input payload:\n{json.dumps({'topics': topics}, indent=2, sort_keys=True)}"
+    )
+    response = client.responses.create(
+        model=model,
+        input=prompt,
+    )
+    parsed = json.loads(response.output_text)
+    rewrites = tuple(TopicRewrite.from_raw(item) for item in parsed.get("topic_rewrites", []))
+
+    path = processed_root / "topic_rewrites" / f"{run_date}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "topic_key": item.topic_key,
+                    "executive_summary": item.executive_summary,
+                    "relevance_for_user": item.relevance_for_user,
+                }
+                for item in rewrites
+            ],
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return TopicRewriteResult(path=path, rewrites=rewrites)
