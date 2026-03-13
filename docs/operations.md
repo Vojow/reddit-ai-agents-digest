@@ -66,6 +66,9 @@ uv run reddit-digest run-daily --date 2026-03-12
 
 ## Output locations
 
+Schema details for these artifact families live in
+[`docs/artifact-schemas.md`](artifact-schemas.md).
+
 - Raw posts: `data/raw/posts/YYYY-MM-DD.json`
 - Raw comments: `data/raw/comments/YYYY-MM-DD.json`
 - Processed posts: `data/processed/posts/YYYY-MM-DD.json`
