@@ -39,6 +39,18 @@ def test_build_teams_payload_includes_variant_summary_and_usage() -> None:
                 subreddit="ClaudeCode",
                 impact_score=7.5,
             ),
+            TeamsTopicSummary(
+                title="CI Permission Guardrails",
+                source_url="https://reddit.com/r/Vibecoding/comments/post_003",
+                subreddit="Vibecoding",
+                impact_score=7.25,
+            ),
+            TeamsTopicSummary(
+                title="Budget Caps in Headless Runs",
+                source_url="https://reddit.com/r/Codex/comments/post_004",
+                subreddit="Codex",
+                impact_score=7.1,
+            ),
         ),
         emerging_themes=("ai-agents", "testing"),
         watch_next=("Prompt-state snapshots", "Plan drift monitors"),
@@ -73,6 +85,8 @@ def test_build_teams_payload_includes_variant_summary_and_usage() -> None:
     assert topics_section["activityTitle"] == "Top Topics"
     assert topics_section["facts"][0]["name"] == "1. Agent Memory Patterns"
     assert "https://reddit.com/r/Codex/comments/post_001" in topics_section["facts"][0]["value"]
+    assert len(topics_section["facts"]) == 4
+    assert topics_section["facts"][3]["name"] == "4. Budget Caps in Headless Runs"
     watch_next_section = payload["sections"][4]
     assert watch_next_section["activityTitle"] == "Watch Next"
     assert watch_next_section["facts"][0]["name"] == "1."

@@ -402,7 +402,7 @@ class DeliveryStage:
                                 subreddit=topic.source_subreddit,
                                 impact_score=topic.impact_score,
                             )
-                            for topic in rendered.digest.topics[:3]
+                            for topic in rendered.digest.topics
                         ),
                         emerging_themes=tuple(theme.label for theme in rendered.digest.emerging_themes),
                         watch_next=rendered.digest.watch_next,
