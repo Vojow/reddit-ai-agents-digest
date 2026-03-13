@@ -76,6 +76,7 @@ src/reddit_digest/
   formula for source-post selection.
 - Picked topics are rendered from scored insights with source links from the
   ranked enabled-subreddit post set.
+- OpenAI remains advisory and does not create same-day Reddit findings or choose topics.
 
 The main architectural constraints and tradeoffs now live in the ADR index:
 [`docs/adr/README.md`](adr/README.md).
