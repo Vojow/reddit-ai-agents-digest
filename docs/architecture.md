@@ -28,6 +28,8 @@ artifacts. The runtime flow is:
 
 Stage ownership and extension points are documented in
 [`docs/pipeline-stages.md`](pipeline-stages.md).
+Persisted field-level artifact contracts are documented in
+[`docs/artifact-schemas.md`](artifact-schemas.md).
 
 ## Code layout
 
