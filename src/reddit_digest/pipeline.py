@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC
-from datetime import datetime
 from pathlib import Path
 import logging
 
@@ -22,19 +20,36 @@ from reddit_digest.extractors.service import extract_insights
 from reddit_digest.models.openai_usage import OpenAIUsageSummary
 from reddit_digest.openai_client import build_openai_client
 from reddit_digest.outputs.digest import build_digest_artifact
+from reddit_digest.outputs.digest import select_digest_topics
 from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
 from reddit_digest.outputs.markdown import render_markdown_digest
-from reddit_digest.outputs.markdown import select_digest_topics
 from reddit_digest.outputs.teams import publish_digest_to_teams
-from reddit_digest.outputs.teams import TeamsTopicSummary
 from reddit_digest.ranking.novelty import apply_novelty
 from reddit_digest.ranking.threads import select_threads
 from reddit_digest.utils.retries import retry_call
 from reddit_digest.utils.state import RunState
 from reddit_digest.utils.state import write_run_state
 
+from reddit_digest.pipeline_stages import AnalysisStage
+from reddit_digest.pipeline_stages import CollectionStage
+from reddit_digest.pipeline_stages import DeliveryStage
+from reddit_digest.pipeline_stages import OpenAIStage
+from reddit_digest.pipeline_stages import PipelineRunContext
+from reddit_digest.pipeline_stages import RenderStage
+from reddit_digest.pipeline_stages import StateStage
+
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class PipelineStages:
+    collection: CollectionStage
+    analysis: AnalysisStage
+    openai: OpenAIStage
+    render: RenderStage
+    delivery: DeliveryStage
+    state: StateStage
 
 
 @dataclass
@@ -47,226 +62,77 @@ class PipelineRunner:
             require_reddit=True,
             require_sheets=not skip_sheets,
         )
-        run_at = datetime.fromisoformat(f"{run_date}T12:00:00+00:00").astimezone(UTC)
-
-        post_source = PublicRedditPostSource(config.runtime)
-        comment_source = PublicRedditCommentSource(config.runtime)
-
-        post_result = retry_call(
-            lambda: PostCollector(post_source, self.base_path / "data" / "raw", self.base_path / "data" / "processed").collect(
-                config.subreddits,
-                run_at=run_at,
-            ),
-            operation="collect_posts",
-            logger=LOGGER,
-        )
-        comment_result = retry_call(
-            lambda: CommentCollector(
-                comment_source,
-                self.base_path / "data" / "raw",
-                self.base_path / "data" / "processed",
-            ).collect(
-                post_result.posts,
-                max_comments_per_post=config.subreddits.fetch.max_comments_per_post,
-                run_at=run_at,
-            ),
-            operation="collect_comments",
-            logger=LOGGER,
-        )
-        extracted = extract_insights(
-            post_result.posts,
-            comment_result.comments,
-            processed_root=self.base_path / "data" / "processed",
+        context = PipelineRunContext.build(
+            base_path=self.base_path,
+            config=config,
             run_date=run_date,
+            skip_sheets=skip_sheets,
         )
-        novelty = apply_novelty(self.base_path / "data" / "processed", run_date=run_date, insights=extracted.insights)
-        thread_selection = select_threads(
-            post_result.posts,
-            scoring=config.scoring,
-            enabled_subreddits=config.subreddits.enabled_subreddits,
-            run_at=run_at,
-            lookback_hours=config.subreddits.fetch.lookback_hours,
-        )
-        digest_topics = select_digest_topics(
-            insights=novelty.insights,
-            scoring=config.scoring,
-            thread_selection=thread_selection,
-        )
+        stages = _compose_stages(self.base_path)
 
-        suggestions = ()
-        topic_rewrites: dict[str, tuple[str, str]] = {}
-        markdown_warnings: list[str] = []
-        openai_usage = OpenAIUsageSummary.empty()
-        if config.runtime.openai_api_key:
-            openai_client = build_openai_client(config.runtime)
-            skip_topic_rewrites = False
-            try:
-                suggestion_result = retry_call(
-                    lambda: generate_suggestions(
-                        openai_client,
-                        model=config.runtime.openai_model,
-                        posts=post_result.posts,
-                        insights=novelty.insights,
-                        processed_root=self.base_path / "data" / "processed",
-                        run_date=run_date,
-                    ),
-                    operation="generate_openai_suggestions",
-                    logger=LOGGER,
-                )
-            except Exception as exc:
-                LOGGER.warning("Skipping OpenAI suggestions for %s after failure", run_date, exc_info=True)
-                quota_warning = _build_openai_warning(exc, skipped_steps="Watch Next suggestions and LLM topic rewrites")
-                if quota_warning is not None:
-                    markdown_warnings.append(quota_warning)
-                    skip_topic_rewrites = True
-                else:
-                    raise
-            else:
-                suggestions = tuple(f"{item.title}: {item.rationale}" for item in suggestion_result.suggestions)
+        collection = stages.collection.run(context)
+        analysis = stages.analysis.run(context, collection)
+        openai = stages.openai.run(context, collection, analysis)
+        rendered = stages.render.run(context, analysis, openai)
+        delivery = stages.delivery.run(context, collection, analysis, openai, rendered)
+        state = stages.state.run(context, collection, analysis, rendered, delivery, openai)
 
-            if digest_topics and not skip_topic_rewrites:
-                try:
-                    rewrite_result = retry_call(
-                        lambda: generate_topic_rewrites(
-                            openai_client,
-                            model=config.runtime.openai_model,
-                            topics=tuple(
-                                {
-                                    "topic_key": topic.topic_key,
-                                    "title": topic.title,
-                                    "executive_summary": topic.executive_summary,
-                                    "relevance_for_user": topic.relevance_for_user,
-                                    "source_title": topic.source_title,
-                                    "source_subreddit": topic.source_subreddit,
-                                    "source_url": topic.source_url,
-                                    "impact_score": topic.impact_score,
-                                    "support_count": topic.support_count,
-                                }
-                                for topic in digest_topics
-                            ),
-                            processed_root=self.base_path / "data" / "processed",
-                            run_date=run_date,
-                        ),
-                        operation="rewrite_openai_topics",
-                        logger=LOGGER,
-                    )
-                except Exception as exc:
-                    LOGGER.warning("Skipping LLM markdown variant for %s after topic rewrite failure", run_date, exc_info=True)
-                    quota_warning = _build_openai_warning(exc, skipped_steps="LLM topic rewrites")
-                    if quota_warning is not None:
-                        markdown_warnings.append(quota_warning)
-                else:
-                    topic_rewrites = {
-                        item.topic_key: (item.executive_summary, item.relevance_for_user)
-                        for item in rewrite_result.rewrites
-                    }
-            openai_usage = openai_client.usage_summary()
-
-        digest = build_digest_artifact(
-            run_date=run_date,
-            insights=novelty.insights,
-            scoring=config.scoring,
-            thread_selection=thread_selection,
-            watch_next=suggestions,
-            topics=digest_topics,
-        )
-        warnings = tuple(dict.fromkeys(markdown_warnings))
-        markdown = render_markdown_digest(
-            run_date=run_date,
-            insights=novelty.insights,
-            scoring=config.scoring,
-            thread_selection=thread_selection,
-            reports_root=self.base_path / "reports",
-            warnings=warnings,
-            digest=digest,
-        )
-        llm_markdown = None
-        if topic_rewrites:
-            llm_markdown = render_markdown_digest(
-                run_date=run_date,
-                insights=novelty.insights,
-                scoring=config.scoring,
-                thread_selection=thread_selection,
-                reports_root=self.base_path / "reports",
-                digest=digest,
-                topic_rewrites=topic_rewrites,
-                variant_suffix="llm",
-            )
-
-        sheets_exported = False
-        if not skip_sheets:
-            retry_call(
-                lambda: GoogleSheetsExporter.from_runtime(config.runtime).export(
-                    run_date=run_date,
-                    posts=post_result.posts,
-                    insights=novelty.insights,
-                    digest=digest,
-                    scoring=config.scoring,
-                    lookback_hours=config.subreddits.fetch.lookback_hours,
-                    run_at=run_at,
-                ),
-                operation="export_google_sheets",
-                logger=LOGGER,
-            )
-            sheets_exported = True
-
-        teams_published = False
-        teams_error = None
-        if config.runtime.teams_webhook_url:
-            try:
-                retry_call(
-                    lambda: publish_digest_to_teams(
-                        config.runtime.teams_webhook_url,
-                        run_date=run_date,
-                        warnings=warnings,
-                        topics=tuple(
-                            TeamsTopicSummary(
-                                title=topic.title,
-                                subreddit=topic.source_subreddit,
-                                impact_score=topic.impact_score,
-                            )
-                            for topic in digest.topics[:3]
-                        ),
-                        emerging_themes=tuple(theme.label for theme in digest.emerging_themes),
-                        watch_next=digest.watch_next,
-                        openai_usage=openai_usage,
-                        deterministic_report_path=str(markdown.daily_path.relative_to(self.base_path)),
-                        preferred_report_path=str(
-                            (llm_markdown.daily_path if llm_markdown is not None else markdown.daily_path).relative_to(
-                                self.base_path
-                            )
-                        ),
-                        llm_report_path=(
-                            str(llm_markdown.daily_path.relative_to(self.base_path))
-                            if llm_markdown is not None
-                            else None
-                        ),
-                    ),
-                    operation="publish_teams_digest",
-                    logger=LOGGER,
-                )
-            except Exception as exc:
-                teams_error = str(exc)
-                LOGGER.warning("Skipping Teams webhook publish for %s after failure", run_date, exc_info=True)
-            else:
-                teams_published = True
-
-        state = RunState(
-            run_date=run_date,
-            completed_at=datetime.now(tz=UTC).isoformat(),
-            raw_posts_path=str(post_result.raw_path.relative_to(self.base_path)),
-            raw_comments_path=str(comment_result.raw_path.relative_to(self.base_path)),
-            insights_path=str(novelty.path.relative_to(self.base_path)),
-            report_path=str(markdown.daily_path.relative_to(self.base_path)),
-            sheets_exported=sheets_exported,
-            teams_published=teams_published,
-            teams_error=teams_error,
-            openai_usage=openai_usage,
-        )
-        write_run_state(self.base_path / "data" / "state", state)
-        _log_openai_usage_summary(openai_usage)
+        _log_openai_usage_summary(openai.usage)
         LOGGER.info("Pipeline completed for %s", run_date)
         return state
+
+
+def _compose_stages(base_path: Path) -> PipelineStages:
+    return PipelineStages(
+        collection=CollectionStage(
+            base_path=base_path,
+            logger=LOGGER,
+            retry_call=retry_call,
+            post_source_factory=PublicRedditPostSource,
+            comment_source_factory=PublicRedditCommentSource,
+            post_collector_factory=PostCollector,
+            comment_collector_factory=CommentCollector,
+        ),
+        analysis=AnalysisStage(
+            base_path=base_path,
+            extract_insights=extract_insights,
+            apply_novelty=apply_novelty,
+            select_threads=select_threads,
+            select_digest_topics=select_digest_topics,
+        ),
+        openai=OpenAIStage(
+            base_path=base_path,
+            logger=LOGGER,
+            retry_call=retry_call,
+            build_openai_client=build_openai_client,
+            generate_suggestions=generate_suggestions,
+            generate_topic_rewrites=generate_topic_rewrites,
+            build_suggestion_warning=lambda exc: _build_openai_warning(
+                exc,
+                skipped_steps="Watch Next suggestions and LLM topic rewrites",
+            ),
+            build_rewrite_warning=lambda exc: _build_openai_warning(
+                exc,
+                skipped_steps="LLM topic rewrites",
+            ),
+        ),
+        render=RenderStage(
+            base_path=base_path,
+            build_digest_artifact=build_digest_artifact,
+            render_markdown_digest=render_markdown_digest,
+        ),
+        delivery=DeliveryStage(
+            base_path=base_path,
+            logger=LOGGER,
+            retry_call=retry_call,
+            sheets_exporter_factory=GoogleSheetsExporter.from_runtime,
+            publish_digest_to_teams=publish_digest_to_teams,
+        ),
+        state=StateStage(
+            base_path=base_path,
+            write_run_state=write_run_state,
+        ),
+    )
 
 
 def _build_openai_warning(exc: Exception, *, skipped_steps: str) -> str | None:
