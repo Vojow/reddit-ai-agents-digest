@@ -6,13 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 import json
 
-from reddit_digest.extractors.approaches import APPROACH_PATTERNS
 from reddit_digest.extractors.common import comment_source
 from reddit_digest.extractors.common import match_patterns
 from reddit_digest.extractors.common import post_source
-from reddit_digest.extractors.guides import GUIDE_PATTERNS
-from reddit_digest.extractors.testing_insights import TESTING_PATTERNS
-from reddit_digest.extractors.tools import TOOL_PATTERNS
+from reddit_digest.extractors.common import TextSource
+from reddit_digest.extractors.registry import RULESETS
 from reddit_digest.models.comment import Comment
 from reddit_digest.models.insight import Insight
 from reddit_digest.models.post import Post
@@ -41,18 +39,10 @@ def extract_insights(
 def _extract(posts: tuple[Post, ...], comments: tuple[Comment, ...]) -> list[Insight]:
     extracted: list[Insight] = []
     for post in posts:
-        source = post_source(post)
-        extracted.extend(match_patterns(source, TOOL_PATTERNS))
-        extracted.extend(match_patterns(source, APPROACH_PATTERNS))
-        extracted.extend(match_patterns(source, GUIDE_PATTERNS))
-        extracted.extend(match_patterns(source, TESTING_PATTERNS))
+        extracted.extend(_match_rulesets(post_source(post)))
 
     for comment in comments:
-        source = comment_source(comment)
-        extracted.extend(match_patterns(source, TOOL_PATTERNS))
-        extracted.extend(match_patterns(source, APPROACH_PATTERNS))
-        extracted.extend(match_patterns(source, GUIDE_PATTERNS))
-        extracted.extend(match_patterns(source, TESTING_PATTERNS))
+        extracted.extend(_match_rulesets(comment_source(comment)))
 
     deduped: dict[tuple[str, str, str], Insight] = {}
     for insight in extracted:
@@ -63,3 +53,10 @@ def _extract(posts: tuple[Post, ...], comments: tuple[Comment, ...]) -> list[Ins
         deduped.values(),
         key=lambda insight: (insight.category, insight.title, insight.source_id),
     )
+
+
+def _match_rulesets(source: TextSource) -> list[Insight]:
+    extracted: list[Insight] = []
+    for ruleset in RULESETS:
+        extracted.extend(match_patterns(source, ruleset.patterns))
+    return extracted
