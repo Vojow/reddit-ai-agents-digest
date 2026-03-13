@@ -26,11 +26,21 @@ def test_build_teams_payload_includes_warnings_paths_and_usage() -> None:
         run_date="2026-03-12",
         warnings=("OPENAI QUOTA EXHAUSTED",),
         topics=(
-            TeamsTopicSummary(title="Agent Memory Patterns", subreddit="Codex", impact_score=8.75),
-            TeamsTopicSummary(title="Eval Harnesses", subreddit="ClaudeCode", impact_score=7.5),
+            TeamsTopicSummary(
+                title="Agent Memory Patterns",
+                source_url="https://reddit.com/r/Codex/comments/post_001",
+                subreddit="Codex",
+                impact_score=8.75,
+            ),
+            TeamsTopicSummary(
+                title="Eval Harnesses",
+                source_url="https://reddit.com/r/ClaudeCode/comments/post_002",
+                subreddit="ClaudeCode",
+                impact_score=7.5,
+            ),
         ),
         emerging_themes=("ai-agents", "testing"),
-        watch_next=("Prompt-state snapshots",),
+        watch_next=("Prompt-state snapshots", "Plan drift monitors"),
         openai_usage=OpenAIUsageSummary(
             total_calls=2,
             input_tokens=120,
@@ -57,6 +67,13 @@ def test_build_teams_payload_includes_warnings_paths_and_usage() -> None:
     assert report_section["facts"][1]["value"] == "reports/daily/2026-03-12.llm.md"
     warnings_section = payload["sections"][1]
     assert warnings_section["activityTitle"] == "Warnings"
+    topics_section = payload["sections"][2]
+    assert topics_section["activityTitle"] == "Top Topics"
+    assert topics_section["markdown"] is True
+    assert "[Agent Memory Patterns](https://reddit.com/r/Codex/comments/post_001)" in topics_section["text"]
+    watch_next_section = payload["sections"][4]
+    assert watch_next_section["activityTitle"] == "Watch Next"
+    assert "1. Prompt-state snapshots<br>2. Plan drift monitors" == watch_next_section["text"]
     usage_section = payload["sections"][-1]
     assert usage_section["facts"][3]["value"] == "160"
 
@@ -68,7 +85,14 @@ def test_publish_digest_to_teams_posts_expected_payload() -> None:
         "https://contoso.example/webhook",
         run_date="2026-03-12",
         warnings=(),
-        topics=(TeamsTopicSummary(title="Agent Memory Patterns", subreddit="Codex", impact_score=8.75),),
+        topics=(
+            TeamsTopicSummary(
+                title="Agent Memory Patterns",
+                source_url="https://reddit.com/r/Codex/comments/post_001",
+                subreddit="Codex",
+                impact_score=8.75,
+            ),
+        ),
         emerging_themes=("ai-agents",),
         watch_next=("Prompt-state snapshots",),
         openai_usage=OpenAIUsageSummary.empty(),
@@ -81,3 +105,7 @@ def test_publish_digest_to_teams_posts_expected_payload() -> None:
     assert session.calls[0][0] == "https://contoso.example/webhook"
     assert session.calls[0][2] == 20
     assert session.calls[0][1]["sections"][0]["facts"][2]["value"] == "reports/daily/2026-03-12.md"
+    assert (
+        session.calls[0][1]["sections"][1]["text"]
+        == "1. [Agent Memory Patterns](https://reddit.com/r/Codex/comments/post_001) · r/Codex · impact 8.75"
+    )
