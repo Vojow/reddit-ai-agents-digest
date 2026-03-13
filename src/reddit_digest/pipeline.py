@@ -8,6 +8,9 @@ from datetime import datetime
 from pathlib import Path
 import logging
 
+from openai import APIStatusError
+from openai import RateLimitError
+
 from reddit_digest.collectors.reddit_comments import CommentCollector
 from reddit_digest.collectors.reddit_comments import PublicRedditCommentSource
 from reddit_digest.collectors.reddit_posts import PostCollector
@@ -87,22 +90,71 @@ class PipelineRunner:
         )
 
         suggestions = ()
-        openai_client = None
+        topic_rewrites: dict[str, tuple[str, str]] = {}
+        markdown_warnings: list[str] = []
         if config.runtime.openai_api_key:
             openai_client = build_openai_client(config.runtime)
-            suggestion_result = retry_call(
-                lambda: generate_suggestions(
-                    openai_client,
-                    model=config.runtime.openai_model,
-                    posts=post_result.posts,
-                    insights=novelty.insights,
-                    processed_root=self.base_path / "data" / "processed",
-                    run_date=run_date,
-                ),
-                operation="generate_openai_suggestions",
-                logger=LOGGER,
-            )
-            suggestions = tuple(f"{item.title}: {item.rationale}" for item in suggestion_result.suggestions)
+            skip_topic_rewrites = False
+            try:
+                suggestion_result = retry_call(
+                    lambda: generate_suggestions(
+                        openai_client,
+                        model=config.runtime.openai_model,
+                        posts=post_result.posts,
+                        insights=novelty.insights,
+                        processed_root=self.base_path / "data" / "processed",
+                        run_date=run_date,
+                    ),
+                    operation="generate_openai_suggestions",
+                    logger=LOGGER,
+                )
+            except Exception as exc:
+                LOGGER.warning("Skipping OpenAI suggestions for %s after failure", run_date, exc_info=True)
+                quota_warning = _build_openai_warning(exc, skipped_steps="Watch Next suggestions and LLM topic rewrites")
+                if quota_warning is not None:
+                    markdown_warnings.append(quota_warning)
+                    skip_topic_rewrites = True
+                else:
+                    raise
+            else:
+                suggestions = tuple(f"{item.title}: {item.rationale}" for item in suggestion_result.suggestions)
+
+            if digest_topics and not skip_topic_rewrites:
+                try:
+                    rewrite_result = retry_call(
+                        lambda: generate_topic_rewrites(
+                            openai_client,
+                            model=config.runtime.openai_model,
+                            topics=tuple(
+                                {
+                                    "topic_key": topic.topic_key,
+                                    "title": topic.title,
+                                    "executive_summary": topic.executive_summary,
+                                    "relevance_for_user": topic.relevance_for_user,
+                                    "source_title": topic.source_title,
+                                    "source_subreddit": topic.source_subreddit,
+                                    "source_url": topic.source_url,
+                                    "impact_score": topic.impact_score,
+                                    "support_count": topic.support_count,
+                                }
+                                for topic in digest_topics
+                            ),
+                            processed_root=self.base_path / "data" / "processed",
+                            run_date=run_date,
+                        ),
+                        operation="rewrite_openai_topics",
+                        logger=LOGGER,
+                    )
+                except Exception as exc:
+                    LOGGER.warning("Skipping LLM markdown variant for %s after topic rewrite failure", run_date, exc_info=True)
+                    quota_warning = _build_openai_warning(exc, skipped_steps="LLM topic rewrites")
+                    if quota_warning is not None:
+                        markdown_warnings.append(quota_warning)
+                else:
+                    topic_rewrites = {
+                        item.topic_key: (item.executive_summary, item.relevance_for_user)
+                        for item in rewrite_result.rewrites
+                    }
         markdown = render_markdown_digest(
             run_date=run_date,
             insights=novelty.insights,
@@ -110,53 +162,21 @@ class PipelineRunner:
             thread_selection=thread_selection,
             reports_root=self.base_path / "reports",
             watch_next=suggestions,
+            warnings=tuple(dict.fromkeys(markdown_warnings)),
             topics=digest_topics,
         )
-        if openai_client is not None and digest_topics:
-            try:
-                rewrite_result = retry_call(
-                    lambda: generate_topic_rewrites(
-                        openai_client,
-                        model=config.runtime.openai_model,
-                        topics=tuple(
-                            {
-                                "topic_key": topic.topic_key,
-                                "title": topic.title,
-                                "executive_summary": topic.executive_summary,
-                                "relevance_for_user": topic.relevance_for_user,
-                                "source_title": topic.source_title,
-                                "source_subreddit": topic.source_subreddit,
-                                "source_url": topic.source_url,
-                                "impact_score": topic.impact_score,
-                                "support_count": topic.support_count,
-                            }
-                            for topic in digest_topics
-                        ),
-                        processed_root=self.base_path / "data" / "processed",
-                        run_date=run_date,
-                    ),
-                    operation="rewrite_openai_topics",
-                    logger=LOGGER,
-                )
-            except Exception:
-                LOGGER.warning("Skipping LLM markdown variant for %s after topic rewrite failure", run_date, exc_info=True)
-            else:
-                topic_rewrites = {
-                    item.topic_key: (item.executive_summary, item.relevance_for_user)
-                    for item in rewrite_result.rewrites
-                }
-                if topic_rewrites:
-                    render_markdown_digest(
-                        run_date=run_date,
-                        insights=novelty.insights,
-                        scoring=config.scoring,
-                        thread_selection=thread_selection,
-                        reports_root=self.base_path / "reports",
-                        watch_next=suggestions,
-                        topics=digest_topics,
-                        topic_rewrites=topic_rewrites,
-                        variant_suffix="llm",
-                    )
+        if topic_rewrites:
+            render_markdown_digest(
+                run_date=run_date,
+                insights=novelty.insights,
+                scoring=config.scoring,
+                thread_selection=thread_selection,
+                reports_root=self.base_path / "reports",
+                watch_next=suggestions,
+                topics=digest_topics,
+                topic_rewrites=topic_rewrites,
+                variant_suffix="llm",
+            )
 
         sheets_exported = False
         if not skip_sheets:
@@ -187,3 +207,30 @@ class PipelineRunner:
         write_run_state(self.base_path / "data" / "state", state)
         LOGGER.info("Pipeline completed for %s", run_date)
         return state
+
+
+def _build_openai_warning(exc: Exception, *, skipped_steps: str) -> str | None:
+    if _is_openai_quota_error(exc):
+        return (
+            f"OPENAI QUOTA EXHAUSTED: {skipped_steps} were skipped. "
+            "The deterministic markdown below was generated successfully without OpenAI enhancements."
+        )
+    if isinstance(exc, RateLimitError):
+        return (
+            f"OPENAI RATE LIMITED: {skipped_steps} were skipped. "
+            "The deterministic markdown below was generated successfully without OpenAI enhancements."
+        )
+    return None
+
+
+def _is_openai_quota_error(exc: Exception) -> bool:
+    if isinstance(exc, APIStatusError):
+        body = getattr(exc, "body", None)
+        if isinstance(body, dict):
+            error = body.get("error")
+            if isinstance(error, dict):
+                code = error.get("code")
+                if code == "insufficient_quota":
+                    return True
+    message = str(exc).lower()
+    return "insufficient quota" in message or "insufficient_quota" in message
