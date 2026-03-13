@@ -12,6 +12,7 @@ from typing import Any
 from typing import Protocol
 
 import gspread
+from gspread.exceptions import WorksheetNotFound
 from google.auth.credentials import Credentials
 from google.oauth2.service_account import Credentials as ServiceAccountCredentials
 
@@ -108,7 +109,7 @@ class GoogleSheetsExporter:
     def _ensure_worksheet(self, title: str, *, cols: int) -> WorksheetLike:
         try:
             return self._workbook.worksheet(title)
-        except Exception:
+        except WorksheetNotFound:
             LOGGER.info("Creating missing worksheet %s", title)
             return self._workbook.add_worksheet(title=title, rows=100, cols=cols)
 
