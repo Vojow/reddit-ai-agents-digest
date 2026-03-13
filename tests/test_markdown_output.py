@@ -11,6 +11,7 @@ from reddit_digest.models.insight import Insight
 from reddit_digest.models.post import Post
 from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.outputs.markdown import select_digest_topics
+from reddit_digest.outputs.markdown import select_emerging_themes
 from reddit_digest.ranking.novelty import apply_novelty
 from reddit_digest.ranking.threads import select_threads
 
@@ -228,6 +229,100 @@ def test_render_markdown_digest_writes_llm_variant_with_rewritten_topics(tmp_pat
     assert "Sharper summary for the picked topic." in result.content
     assert "This matters because it maps directly to your agent workflow." in result.content
     assert "- Original post:" in result.content
+
+
+def test_select_emerging_themes_dedupes_titles_merges_overlapping_tags_and_caps_evidence() -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    insights = (
+        Insight.from_raw(
+            {
+                "category": "approaches",
+                "title": "Agent Memory Patterns",
+                "summary": "Agent workflow guide with reusable template and checklist.",
+                "tags": ["coding-agents"],
+                "evidence": "Detailed workflow checklist guide template context snapshot refactor automation.",
+                "source_kind": "post",
+                "source_id": "post_001",
+                "source_post_id": "post_001",
+                "source_permalink": "https://reddit.com/r/Codex/comments/post_001",
+                "subreddit": "Codex",
+                "why_it_matters": "Useful workflow checklist for agent systems.",
+                "novelty": "new",
+            }
+        ),
+        Insight.from_raw(
+            {
+                "category": "approaches",
+                "title": " agent   memory patterns ",
+                "summary": "Another agent workflow guide with template details.",
+                "tags": ["ai-agents"],
+                "evidence": "Workflow template guide context automation.",
+                "source_kind": "comment",
+                "source_id": "comment_001",
+                "source_post_id": "post_002",
+                "source_permalink": "https://reddit.com/r/ClaudeCode/comments/post_002/comment_001",
+                "subreddit": "ClaudeCode",
+                "why_it_matters": "Keeps agent workflows repeatable.",
+                "novelty": "new",
+            }
+        ),
+        Insight.from_raw(
+            {
+                "category": "approaches",
+                "title": "Tooling For Agents",
+                "summary": "Agent automation guide for test workflows.",
+                "tags": ["ai-agents"],
+                "evidence": "Automation workflow test guide.",
+                "source_kind": "post",
+                "source_id": "post_003",
+                "source_post_id": "post_003",
+                "source_permalink": "https://reddit.com/r/Codex/comments/post_003",
+                "subreddit": "Codex",
+                "why_it_matters": "Useful for agent development loops.",
+                "novelty": "new",
+            }
+        ),
+        Insight.from_raw(
+            {
+                "category": "approaches",
+                "title": "Eval Harnesses",
+                "summary": "Guide for test eval workflow and agent checks.",
+                "tags": ["ai-agents"],
+                "evidence": "Guide workflow test eval checklist automation template.",
+                "source_kind": "post",
+                "source_id": "post_004",
+                "source_post_id": "post_004",
+                "source_permalink": "https://reddit.com/r/Vibecoding/comments/post_004",
+                "subreddit": "Vibecoding",
+                "why_it_matters": "Directly helps testing agents.",
+                "novelty": "new",
+            }
+        ),
+        Insight.from_raw(
+            {
+                "category": "approaches",
+                "title": "Workflow Docs",
+                "summary": "Guide for documenting agent workflow and context handoffs.",
+                "tags": ["ai-agents"],
+                "evidence": "Workflow documentation guide checklist template automation context.",
+                "source_kind": "post",
+                "source_id": "post_005",
+                "source_post_id": "post_005",
+                "source_permalink": "https://reddit.com/r/Codex/comments/post_005",
+                "subreddit": "Codex",
+                "why_it_matters": "Makes agent operations easier to reuse.",
+                "novelty": "new",
+            }
+        ),
+    )
+
+    themes = select_emerging_themes(insights=insights, scoring=scoring)
+
+    assert themes[0].label == "Ai Agents"
+    assert themes[0].support_count == 4
+    assert len(themes[0].evidence_titles) == 3
+    assert themes[0].evidence_titles.count("Agent Memory Patterns") == 1
+    assert "Coding Agents" not in [theme.label for theme in themes]
 
 
 def _build_post(*, post_id: str, subreddit: str, score: int, num_comments: int) -> Post:

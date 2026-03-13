@@ -113,6 +113,7 @@ LOOKBACK_HOURS=12
 
     assert config.runtime.reddit_user_agent == "reddit-ai-agents-digest/0.1.0"
     assert config.runtime.openai_model == "gpt-5"
+    assert config.runtime.teams_webhook_url is None
     assert config.subreddits.fetch.lookback_hours == 12
 
 
@@ -261,6 +262,14 @@ def test_runtime_config_reads_wif_fields(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert runtime.gcp_workload_identity_provider == "projects/123/locations/global/workloadIdentityPools/pool/providers/provider"
     assert runtime.gcp_service_account_email == "digest-bot@example.iam.gserviceaccount.com"
+
+
+def test_runtime_config_reads_teams_webhook(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEAMS_WEBHOOK_URL", "https://contoso.example/webhook")
+
+    runtime = load_runtime_config()
+
+    assert runtime.teams_webhook_url == "https://contoso.example/webhook"
 
 
 def test_invalid_scoring_config_fails(tmp_path: Path) -> None:

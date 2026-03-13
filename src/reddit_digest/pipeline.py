@@ -16,14 +16,17 @@ from reddit_digest.collectors.reddit_comments import PublicRedditCommentSource
 from reddit_digest.collectors.reddit_posts import PostCollector
 from reddit_digest.collectors.reddit_posts import PublicRedditPostSource
 from reddit_digest.config import load_config
-from reddit_digest.extractors.openai_suggestions import build_openai_client
 from reddit_digest.extractors.openai_suggestions import generate_suggestions
 from reddit_digest.extractors.openai_suggestions import generate_topic_rewrites
 from reddit_digest.extractors.service import extract_insights
-from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
+from reddit_digest.models.openai_usage import OpenAIUsageSummary
+from reddit_digest.openai_client import build_openai_client
 from reddit_digest.outputs.digest import build_digest_artifact
+from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
 from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.outputs.markdown import select_digest_topics
+from reddit_digest.outputs.teams import publish_digest_to_teams
+from reddit_digest.outputs.teams import TeamsTopicSummary
 from reddit_digest.ranking.novelty import apply_novelty
 from reddit_digest.ranking.threads import select_threads
 from reddit_digest.utils.retries import retry_call
@@ -93,6 +96,7 @@ class PipelineRunner:
         suggestions = ()
         topic_rewrites: dict[str, tuple[str, str]] = {}
         markdown_warnings: list[str] = []
+        openai_usage = OpenAIUsageSummary.empty()
         if config.runtime.openai_api_key:
             openai_client = build_openai_client(config.runtime)
             skip_topic_rewrites = False
@@ -156,6 +160,8 @@ class PipelineRunner:
                         item.topic_key: (item.executive_summary, item.relevance_for_user)
                         for item in rewrite_result.rewrites
                     }
+            openai_usage = openai_client.usage_summary()
+
         digest = build_digest_artifact(
             run_date=run_date,
             insights=novelty.insights,
@@ -164,18 +170,19 @@ class PipelineRunner:
             watch_next=suggestions,
             topics=digest_topics,
         )
+        warnings = tuple(dict.fromkeys(markdown_warnings))
         markdown = render_markdown_digest(
             run_date=run_date,
             insights=novelty.insights,
             scoring=config.scoring,
             thread_selection=thread_selection,
             reports_root=self.base_path / "reports",
-            watch_next=suggestions,
-            warnings=tuple(dict.fromkeys(markdown_warnings)),
+            warnings=warnings,
             digest=digest,
         )
+        llm_markdown = None
         if topic_rewrites:
-            render_markdown_digest(
+            llm_markdown = render_markdown_digest(
                 run_date=run_date,
                 insights=novelty.insights,
                 scoring=config.scoring,
@@ -203,6 +210,47 @@ class PipelineRunner:
             )
             sheets_exported = True
 
+        teams_published = False
+        teams_error = None
+        if config.runtime.teams_webhook_url:
+            try:
+                retry_call(
+                    lambda: publish_digest_to_teams(
+                        config.runtime.teams_webhook_url,
+                        run_date=run_date,
+                        warnings=warnings,
+                        topics=tuple(
+                            TeamsTopicSummary(
+                                title=topic.title,
+                                subreddit=topic.source_subreddit,
+                                impact_score=topic.impact_score,
+                            )
+                            for topic in digest.topics[:3]
+                        ),
+                        emerging_themes=tuple(theme.label for theme in digest.emerging_themes),
+                        watch_next=digest.watch_next,
+                        openai_usage=openai_usage,
+                        deterministic_report_path=str(markdown.daily_path.relative_to(self.base_path)),
+                        preferred_report_path=str(
+                            (llm_markdown.daily_path if llm_markdown is not None else markdown.daily_path).relative_to(
+                                self.base_path
+                            )
+                        ),
+                        llm_report_path=(
+                            str(llm_markdown.daily_path.relative_to(self.base_path))
+                            if llm_markdown is not None
+                            else None
+                        ),
+                    ),
+                    operation="publish_teams_digest",
+                    logger=LOGGER,
+                )
+            except Exception as exc:
+                teams_error = str(exc)
+                LOGGER.warning("Skipping Teams webhook publish for %s after failure", run_date, exc_info=True)
+            else:
+                teams_published = True
+
         state = RunState(
             run_date=run_date,
             completed_at=datetime.now(tz=UTC).isoformat(),
@@ -211,8 +259,12 @@ class PipelineRunner:
             insights_path=str(novelty.path.relative_to(self.base_path)),
             report_path=str(markdown.daily_path.relative_to(self.base_path)),
             sheets_exported=sheets_exported,
+            teams_published=teams_published,
+            teams_error=teams_error,
+            openai_usage=openai_usage,
         )
         write_run_state(self.base_path / "data" / "state", state)
+        _log_openai_usage_summary(openai_usage)
         LOGGER.info("Pipeline completed for %s", run_date)
         return state
 
@@ -242,3 +294,22 @@ def _is_openai_quota_error(exc: Exception) -> bool:
                     return True
     message = str(exc).lower()
     return "insufficient quota" in message or "insufficient_quota" in message
+
+
+def _log_openai_usage_summary(usage: OpenAIUsageSummary) -> None:
+    LOGGER.info(
+        "OpenAI usage totals: calls=%s input_tokens=%s output_tokens=%s total_tokens=%s",
+        usage.total_calls,
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.total_tokens,
+    )
+    for operation in usage.operations:
+        LOGGER.info(
+            "OpenAI usage for %s: calls=%s input_tokens=%s output_tokens=%s total_tokens=%s",
+            operation.operation,
+            operation.calls,
+            operation.input_tokens,
+            operation.output_tokens,
+            operation.total_tokens,
+        )

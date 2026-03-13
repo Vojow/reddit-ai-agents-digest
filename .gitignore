@@ -10,6 +10,7 @@ data/processed/*
 data/state/*
 reports/daily/*
 reports/latest.md
+reports/latest.llm.md
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/state/.gitkeep

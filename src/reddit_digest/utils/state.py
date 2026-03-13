@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 import json
 
+from reddit_digest.models.openai_usage import OpenAIUsageSummary
+
 
 @dataclass(frozen=True)
 class RunState:
@@ -17,6 +19,9 @@ class RunState:
     insights_path: str
     report_path: str
     sheets_exported: bool
+    teams_published: bool
+    teams_error: str | None
+    openai_usage: OpenAIUsageSummary
 
 
 def write_run_state(state_root: Path, state: RunState) -> None:

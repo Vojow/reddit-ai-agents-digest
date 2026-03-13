@@ -12,21 +12,12 @@ from reddit_digest.models.insight import Insight
 from reddit_digest.models.post import Post
 
 
-class FakeResponses:
+class FakeClient:
     def __init__(self, output_text: str) -> None:
         self.output_text = output_text
 
-    def create(self, **kwargs):
-        class Response:
-            def __init__(self, output_text: str) -> None:
-                self.output_text = output_text
-
-        return Response(self.output_text)
-
-
-class FakeClient:
-    def __init__(self, output_text: str) -> None:
-        self.responses = FakeResponses(output_text)
+    def create_text(self, *, operation: str, model: str, input: str) -> str:
+        return self.output_text
 
 
 def _suggestions_client() -> FakeClient:
