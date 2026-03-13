@@ -69,11 +69,14 @@ def test_build_teams_payload_includes_warnings_paths_and_usage() -> None:
     assert warnings_section["activityTitle"] == "Warnings"
     topics_section = payload["sections"][2]
     assert topics_section["activityTitle"] == "Top Topics"
-    assert topics_section["markdown"] is True
-    assert "[Agent Memory Patterns](https://reddit.com/r/Codex/comments/post_001)" in topics_section["text"]
+    assert topics_section["facts"][0]["name"] == "1. Agent Memory Patterns"
+    assert "https://reddit.com/r/Codex/comments/post_001" in topics_section["facts"][0]["value"]
     watch_next_section = payload["sections"][4]
     assert watch_next_section["activityTitle"] == "Watch Next"
-    assert "1. Prompt-state snapshots<br>2. Plan drift monitors" == watch_next_section["text"]
+    assert watch_next_section["facts"][0]["name"] == "1."
+    assert watch_next_section["facts"][0]["value"] == "Prompt-state snapshots"
+    assert watch_next_section["facts"][1]["name"] == "2."
+    assert watch_next_section["facts"][1]["value"] == "Plan drift monitors"
     usage_section = payload["sections"][-1]
     assert usage_section["facts"][3]["value"] == "160"
 
@@ -105,7 +108,5 @@ def test_publish_digest_to_teams_posts_expected_payload() -> None:
     assert session.calls[0][0] == "https://contoso.example/webhook"
     assert session.calls[0][2] == 20
     assert session.calls[0][1]["sections"][0]["facts"][2]["value"] == "reports/daily/2026-03-12.md"
-    assert (
-        session.calls[0][1]["sections"][1]["text"]
-        == "1. [Agent Memory Patterns](https://reddit.com/r/Codex/comments/post_001) · r/Codex · impact 8.75"
-    )
+    assert session.calls[0][1]["sections"][1]["facts"][0]["name"] == "1. Agent Memory Patterns"
+    assert "https://reddit.com/r/Codex/comments/post_001" in session.calls[0][1]["sections"][1]["facts"][0]["value"]

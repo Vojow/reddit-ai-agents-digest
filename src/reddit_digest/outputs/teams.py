@@ -87,8 +87,7 @@ def build_teams_payload(
         },
         {
             "activityTitle": "Top Topics",
-            "markdown": True,
-            "text": _render_topic_lines(topics),
+            "facts": _build_topic_facts(topics),
         },
         {
             "activityTitle": "Emerging Themes",
@@ -100,8 +99,7 @@ def build_teams_payload(
         },
         {
             "activityTitle": "Watch Next",
-            "markdown": True,
-            "text": _render_watch_next_lines(watch_next),
+            "facts": _build_watch_next_facts(watch_next),
         },
         {
             "activityTitle": "OpenAI Usage",
@@ -130,18 +128,19 @@ def build_teams_payload(
         "title": f"Daily Reddit Digest — {run_date}",
         "sections": sections,
     }
-
-
-def _render_topic_lines(topics: tuple[TeamsTopicSummary, ...]) -> str:
+def _build_topic_facts(topics: tuple[TeamsTopicSummary, ...]) -> list[dict[str, str]]:
     if not topics:
-        return "No picked topics today."
-    return "<br>".join(
-        f"{index}. [{topic.title}]({topic.source_url}) · r/{topic.subreddit} · impact {topic.impact_score:.2f}"
+        return [{"name": "Topics", "value": "No picked topics today."}]
+    return [
+        {
+            "name": f"{index}. {topic.title}",
+            "value": f"r/{topic.subreddit} · impact {topic.impact_score:.2f} · {topic.source_url}",
+        }
         for index, topic in enumerate(topics[:3], start=1)
-    )
+    ]
 
 
-def _render_watch_next_lines(watch_next: tuple[str, ...]) -> str:
+def _build_watch_next_facts(watch_next: tuple[str, ...]) -> list[dict[str, str]]:
     if not watch_next:
-        return "No watch-next items."
-    return "<br>".join(f"{index}. {item}" for index, item in enumerate(watch_next, start=1))
+        return [{"name": "Items", "value": "No watch-next items."}]
+    return [{"name": f"{index}.", "value": item} for index, item in enumerate(watch_next, start=1)]
