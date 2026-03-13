@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from gspread.exceptions import WorksheetNotFound
 
 from reddit_digest.config import RuntimeConfig
 from reddit_digest.config import load_scoring_config
@@ -47,7 +48,7 @@ class FakeWorkbook:
 
     def worksheet(self, title: str) -> FakeWorksheet:
         if title not in self.worksheets:
-            raise KeyError(title)
+            raise WorksheetNotFound(title)
         return self.worksheets[title]
 
     def add_worksheet(self, title: str, rows: int, cols: int) -> FakeWorksheet:
@@ -64,6 +65,20 @@ class FakeClient:
     def open_by_key(self, key: str) -> FakeWorkbook:
         self.opened_key = key
         return self._workbook
+
+
+class ErroringWorkbook(FakeWorkbook):
+    def __init__(self, error: Exception) -> None:
+        super().__init__()
+        self.error = error
+        self.add_calls: list[tuple[str, int, int]] = []
+
+    def worksheet(self, title: str) -> FakeWorksheet:
+        raise self.error
+
+    def add_worksheet(self, title: str, rows: int, cols: int) -> FakeWorksheet:
+        self.add_calls.append((title, rows, cols))
+        return super().add_worksheet(title, rows, cols)
 
 
 def build_inputs(sample_posts_payload: list[dict[str, object]], sample_comments_payload: list[dict[str, object]], tmp_path: Path):
@@ -253,3 +268,23 @@ def test_google_sheets_exporter_from_runtime_supports_wif_backed_adc(monkeypatch
     assert isinstance(exporter, GoogleSheetsExporter)
     assert client.opened_key == "sheet-123"
     assert captured["scopes"] == ["https://www.googleapis.com/auth/spreadsheets"]
+
+
+def test_ensure_worksheet_creates_missing_tab() -> None:
+    workbook = FakeWorkbook()
+    exporter = GoogleSheetsExporter(workbook)
+
+    worksheet = exporter._ensure_worksheet("Missing_Tab", cols=4)
+
+    assert worksheet.title == "Missing_Tab"
+    assert workbook.worksheet("Missing_Tab") is worksheet
+
+
+def test_ensure_worksheet_propagates_non_missing_errors() -> None:
+    workbook = ErroringWorkbook(RuntimeError("permission denied"))
+    exporter = GoogleSheetsExporter(workbook)
+
+    with pytest.raises(RuntimeError, match="permission denied"):
+        exporter._ensure_worksheet("Insights", cols=4)
+
+    assert workbook.add_calls == []
