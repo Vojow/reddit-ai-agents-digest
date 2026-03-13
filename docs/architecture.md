@@ -11,15 +11,20 @@ artifacts. The runtime flow is:
 4. Extract normalized insights into `data/processed/insights/YYYY-MM-DD.json`.
 5. Compare those insights to the most recent prior run and mark them as `new`
    or `ongoing`.
-6. Rank collected threads across enabled subreddits, producing a diversified
-   global top 5 and per-subreddit top 3 lists.
-7. Optionally generate OpenAI-backed `Watch Next` suggestions into
+6. Rank collected threads across enabled subreddits so picked topics stay
+   grounded in configured source posts.
+7. Derive deterministic picked topics from scored insights and ranked posts.
+8. Optionally generate OpenAI-backed `Watch Next` suggestions into
    `data/processed/suggestions/YYYY-MM-DD.json`.
-8. Render the Markdown digest to `reports/daily/YYYY-MM-DD.md` and refresh
-   `reports/latest.md`.
-9. Optionally export raw posts, insights, and daily digest summaries to Google
-   Sheets.
-10. Persist run metadata into `data/state/YYYY-MM-DD.json` and `data/state/latest.json`.
+9. Optionally generate OpenAI-backed topic rewrites into
+   `data/processed/topic_rewrites/YYYY-MM-DD.json`.
+10. Render the deterministic Markdown digest to `reports/daily/YYYY-MM-DD.md`
+    and refresh `reports/latest.md`.
+11. Optionally render an LLM-enhanced digest for the same selected topics to
+    `reports/daily/YYYY-MM-DD.llm.md` and `reports/latest.llm.md`.
+12. Optionally export raw posts, insights, and daily digest summaries to Google
+    Sheets.
+13. Persist run metadata into `data/state/YYYY-MM-DD.json` and `data/state/latest.json`.
 
 ## Code layout
 
@@ -62,13 +67,16 @@ src/reddit_digest/
 
 - Normalized typed models sit between collection and downstream processing.
 - Each stage writes its own output instead of relying on in-memory-only flow.
-- The OpenAI step is advisory only. It can influence `Watch Next`, but it does
-  not create same-day Reddit findings.
+- The deterministic markdown is the source-of-record report for a run.
+- The OpenAI step is advisory only. It can influence `Watch Next` and rewrite
+  topic prose, but it does not create same-day Reddit findings or choose topics.
+- The LLM markdown variant is best-effort and never replaces the deterministic
+  report path in run state.
 - MVP ingestion uses public Reddit JSON endpoints and only requires a user agent.
 - Thread ranking uses only enabled subreddits and keeps the existing score
-  formula for both global and per-subreddit ordering.
-- The global `Notable Threads` list applies a minimal diversity rule so it
-  includes at least 2 enabled subreddits when eligible candidates exist.
+  formula for source-post selection.
+- Picked topics are rendered from scored insights with source links from the
+  ranked enabled-subreddit post set.
 - GitHub Actions authenticates to Google Sheets via GitHub OIDC and Workload
   Identity Federation; local runs can still use ADC or a local JSON fallback.
 - The current GitHub Actions workflow is markdown-only on a `self-hosted`

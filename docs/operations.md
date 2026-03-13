@@ -53,27 +53,31 @@ uv run reddit-digest run-daily --date 2026-03-12
 - Processed comments: `data/processed/comments/YYYY-MM-DD.json`
 - Processed insights: `data/processed/insights/YYYY-MM-DD.json`
 - OpenAI suggestions: `data/processed/suggestions/YYYY-MM-DD.json`
-- Daily digest: `reports/daily/YYYY-MM-DD.md`
-- Latest digest: `reports/latest.md`
+- OpenAI topic rewrites: `data/processed/topic_rewrites/YYYY-MM-DD.json`
+- Deterministic daily digest: `reports/daily/YYYY-MM-DD.md`
+- Deterministic latest digest: `reports/latest.md`
+- LLM daily digest: `reports/daily/YYYY-MM-DD.llm.md`
+- LLM latest digest: `reports/latest.llm.md`
 - Run state: `data/state/YYYY-MM-DD.json`
 
 ## Ranking behavior
 
-- Only enabled subreddits contribute to thread ranking.
-- `INCLUDE_SECONDARY_SUBREDDITS=false` means secondary subreddits do not appear
-  in global or per-subreddit rankings.
-- `## Notable Threads` is the diversified global top 5 across enabled
-  subreddits.
-- `## Top Threads By Subreddit` renders the top 3 ranked threads for each
-  enabled subreddit.
-- The global top 5 keeps the current deterministic score formula and requires
-  at least 2 distinct subreddits when eligible candidates exist across more
-  than one enabled subreddit.
+- Only enabled subreddits contribute to thread ranking and topic source
+  grounding.
+- `INCLUDE_SECONDARY_SUBREDDITS=false` means secondary subreddits do not
+  contribute threads or source posts.
+- Topic selection is deterministic and derived from scored insights.
+- The deterministic markdown and the LLM markdown use the same selected topics.
+- The LLM variant only rewrites `Picked Topics` prose. It does not change topic
+  titles, links, subreddit attribution, scores, or counts.
 
 ## Failure handling
 
 - Networked stages retry up to three times.
 - Same-day reruns overwrite file outputs deterministically.
+- The deterministic markdown remains the source-of-record output for each run.
+- The LLM markdown variant is best-effort; if topic rewriting fails, the
+  deterministic markdown and run state still complete.
 - Sheets export replaces existing rows for the same `run_date`.
 - The latest completed state is mirrored into `data/state/latest.json`.
 
@@ -101,9 +105,11 @@ command as manual execution: `make run-markdown`.
 Optional secrets:
 - `OPENAI_API_KEY`
 
-The workflow currently runs markdown-only, so Google auth is not required in
-CI. Google auth is not required in CI for the current markdown-only workflow.
-If you later want Sheets export in self-hosted CI, use the runbook in
+The workflow currently runs markdown-only, so Google auth is not required in CI
+for the current markdown-only workflow. If `OPENAI_API_KEY` is present, the
+workflow can emit both markdown variants; otherwise it emits only the
+deterministic markdown. If you later want Sheets export in self-hosted CI, use
+the runbook in
 [`docs/gcp-wif-setup.md`](gcp-wif-setup.md) and reintroduce the OIDC auth step.
 
 On workflow failure, the action uploads `reports/`, `data/processed/`, and
