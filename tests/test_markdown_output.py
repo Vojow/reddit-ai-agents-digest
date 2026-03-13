@@ -86,6 +86,36 @@ def test_markdown_digest_section_order(
     assert positions == sorted(positions)
 
 
+def test_markdown_digest_renders_warnings_before_executive_summary(tmp_path: Path) -> None:
+    scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
+    posts = (
+        _build_post(post_id="codex-1", subreddit="Codex", score=99, num_comments=25),
+        _build_post(post_id="claude-1", subreddit="ClaudeCode", score=96, num_comments=23),
+    )
+    insights = tuple(_build_insight(post) for post in posts)
+    thread_selection = select_threads(
+        posts,
+        scoring=scoring,
+        enabled_subreddits=("Codex", "ClaudeCode"),
+        run_at=datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+        lookback_hours=24,
+    )
+
+    result = render_markdown_digest(
+        run_date="2026-03-12",
+        insights=insights,
+        scoring=scoring,
+        thread_selection=thread_selection,
+        reports_root=tmp_path / "reports",
+        warnings=(
+            "OPENAI QUOTA EXHAUSTED: Watch Next suggestions and LLM topic rewrites were skipped. The deterministic markdown below was generated successfully without OpenAI enhancements.",
+        ),
+    )
+
+    assert result.content.index("## Warnings") < result.content.index("## Executive Summary")
+    assert "OPENAI QUOTA EXHAUSTED" in result.content
+
+
 def test_markdown_digest_renders_picked_topics_with_summary_relevance_and_source(tmp_path: Path) -> None:
     scoring = load_scoring_config(Path.cwd() / "config" / "scoring.yaml")
     posts = tuple(

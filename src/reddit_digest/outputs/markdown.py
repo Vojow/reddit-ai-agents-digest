@@ -42,6 +42,7 @@ def render_markdown_digest(
     thread_selection: ThreadSelection,
     reports_root: Path,
     watch_next: tuple[str, ...] = (),
+    warnings: tuple[str, ...] = (),
     topics: tuple[RankedTopic, ...] | None = None,
     topic_rewrites: Mapping[str, tuple[str, str]] | None = None,
     variant_suffix: str = "",
@@ -57,6 +58,8 @@ def render_markdown_digest(
     )
 
     lines = [f"# Daily Reddit Digest — {run_date}", ""]
+    if warnings:
+        lines.extend(_render_warnings(warnings))
     lines.extend(_render_executive_summary(thread_selection, selected_topics))
     lines.extend(_render_picked_topics(selected_topics, topic_rewrites=topic_rewrites))
     lines.extend(_render_emerging_themes(scored_insights))
@@ -70,6 +73,14 @@ def render_markdown_digest(
     daily_path.write_text(content)
     latest_path.write_text(content)
     return MarkdownDigestResult(daily_path=daily_path, latest_path=latest_path, content=content)
+
+
+def _render_warnings(warnings: tuple[str, ...]) -> list[str]:
+    lines = ["## Warnings"]
+    for item in warnings:
+        lines.append(f"- {item}")
+    lines.append("")
+    return lines
 
 
 def select_digest_topics(
