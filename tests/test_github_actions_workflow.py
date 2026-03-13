@@ -5,8 +5,8 @@ from pathlib import Path
 import yaml
 
 
-def load_workflow() -> dict[str, object]:
-    path = Path.cwd() / ".github" / "workflows" / "daily-digest.yml"
+def load_workflow(name: str) -> dict[str, object]:
+    path = Path.cwd() / ".github" / "workflows" / name
     return yaml.safe_load(path.read_text())
 
 
@@ -17,7 +17,7 @@ def workflow_triggers(workflow: dict[str, object]) -> dict[str, object]:
 
 
 def test_daily_workflow_runs_markdown_without_google_auth() -> None:
-    workflow = load_workflow()
+    workflow = load_workflow("daily-digest.yml")
     job = workflow["jobs"]["run-digest"]
     env = job["env"]
     steps = job["steps"]
@@ -36,13 +36,13 @@ def test_daily_workflow_runs_markdown_without_google_auth() -> None:
 
 
 def test_daily_workflow_remains_manually_runnable() -> None:
-    workflow = load_workflow()
+    workflow = load_workflow("daily-digest.yml")
 
     assert "workflow_dispatch" in workflow_triggers(workflow)
 
 
 def test_daily_workflow_remains_scheduled_and_uploads_failure_artifacts() -> None:
-    workflow = load_workflow()
+    workflow = load_workflow("daily-digest.yml")
     triggers = workflow_triggers(workflow)
     job = workflow["jobs"]["run-digest"]
     upload_step = next(step for step in job["steps"] if step.get("uses") == "actions/upload-artifact@v4")
@@ -52,3 +52,22 @@ def test_daily_workflow_remains_scheduled_and_uploads_failure_artifacts() -> Non
     assert "reports/" in upload_step["with"]["path"]
     assert "data/processed/" in upload_step["with"]["path"]
     assert "data/state/" in upload_step["with"]["path"]
+
+
+def test_unit_test_workflow_runs_on_pull_requests_and_main_pushes() -> None:
+    workflow = load_workflow("unit-tests.yml")
+    triggers = workflow_triggers(workflow)
+
+    assert "pull_request" in triggers
+    assert triggers["push"] == {"branches": ["main"]}
+    assert "workflow_dispatch" in triggers
+
+
+def test_unit_test_workflow_executes_pytest_with_uv() -> None:
+    workflow = load_workflow("unit-tests.yml")
+    job = workflow["jobs"]["unit-tests"]
+    steps = job["steps"]
+
+    assert job["runs-on"] == "ubuntu-latest"
+    assert next(step for step in steps if step.get("name") == "Install dependencies")["run"] == "uv sync --dev"
+    assert next(step for step in steps if step.get("name") == "Run unit tests")["run"] == "uv run pytest -q"
