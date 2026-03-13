@@ -363,7 +363,8 @@ def test_delivery_stage_handles_optional_exports_and_teams_publish(tmp_path: Pat
     assert result == DeliveryArtifacts(sheets_exported=True, teams_published=True, teams_error=None)
     assert exported["posts"] == (post,)
     assert published["url"] == "https://contoso.example/webhook"
-    assert published["preferred_report_path"] == "reports/daily/2026-03-12.llm.md"
+    assert published["selected_report_variant"] == "LLM-enhanced"
+    assert published["preferred_executive_summary"] is None
 
 
 def test_state_stage_writes_run_state_from_stage_artifacts(tmp_path: Path) -> None:

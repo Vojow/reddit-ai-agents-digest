@@ -729,8 +729,8 @@ def test_pipeline_publishes_to_teams_and_persists_openai_usage(
     assert state.teams_error is None
     assert state.openai_usage.total_tokens == 160
     assert published["args"][0] == "https://contoso.example/webhook"
-    assert published["kwargs"]["preferred_report_path"] == "reports/daily/2026-03-12.llm.md"
-    assert published["kwargs"]["deterministic_report_path"] == "reports/daily/2026-03-12.md"
+    assert published["kwargs"]["selected_report_variant"] == "LLM-enhanced"
+    assert published["kwargs"]["preferred_executive_summary"] == "Three workflow-specific topics stand out across Codex today."
     assert published["kwargs"]["watch_next"] == ("Prompt-state snapshots: Track tomorrow",)
     assert "OpenAI usage totals: calls=2 input_tokens=120 output_tokens=40 total_tokens=160" in caplog.text
 
