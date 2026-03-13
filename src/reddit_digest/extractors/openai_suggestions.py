@@ -16,6 +16,10 @@ from reddit_digest.models.post import Post
 from reddit_digest.models.suggestion import Suggestion
 
 
+class OpenAIResponseError(ValueError):
+    """Raised when the OpenAI response does not satisfy the expected schema."""
+
+
 class ResponsesClient(Protocol):
     def create(self, **kwargs: Any) -> Any:
         ...
@@ -91,8 +95,8 @@ def generate_suggestions(
         model=model,
         input=prompt,
     )
-    parsed = json.loads(response.output_text)
-    suggestions = tuple(Suggestion.from_raw(item) for item in parsed.get("suggestions", []))
+    items = _parse_response_items(response.output_text, list_key="suggestions")
+    suggestions = tuple(Suggestion.from_raw(item) for item in items)
 
     path = processed_root / "suggestions" / f"{run_date}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -121,8 +125,9 @@ def generate_topic_rewrites(
         model=model,
         input=prompt,
     )
-    parsed = json.loads(response.output_text)
-    rewrites = tuple(TopicRewrite.from_raw(item) for item in parsed.get("topic_rewrites", []))
+    items = _parse_response_items(response.output_text, list_key="topic_rewrites")
+    rewrites = tuple(TopicRewrite.from_raw(item) for item in items)
+    _validate_topic_rewrites(rewrites, topics=topics)
 
     path = processed_root / "topic_rewrites" / f"{run_date}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -141,3 +146,55 @@ def generate_topic_rewrites(
         )
     )
     return TopicRewriteResult(path=path, rewrites=rewrites)
+
+
+def _parse_response_items(output_text: str, *, list_key: str) -> list[dict[str, Any]]:
+    try:
+        parsed = json.loads(output_text)
+    except json.JSONDecodeError as exc:
+        raise OpenAIResponseError("OpenAI response must be valid JSON") from exc
+    if not isinstance(parsed, dict):
+        raise OpenAIResponseError("OpenAI response must be a JSON object")
+    items = parsed.get(list_key)
+    if not isinstance(items, list):
+        raise OpenAIResponseError(f"OpenAI response must include a '{list_key}' list")
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise OpenAIResponseError(f"OpenAI response item {index} in '{list_key}' must be an object")
+    return items
+
+
+def _validate_topic_rewrites(
+    rewrites: tuple[TopicRewrite, ...],
+    *,
+    topics: tuple[dict[str, object], ...],
+) -> None:
+    expected_keys = []
+    for topic in topics:
+        topic_key = topic.get("topic_key")
+        if not isinstance(topic_key, str) or not topic_key:
+            raise OpenAIResponseError("Each topic must include a non-empty string 'topic_key'")
+        expected_keys.append(topic_key)
+
+    actual_keys = [item.topic_key for item in rewrites]
+    duplicate_keys = sorted({key for key in actual_keys if actual_keys.count(key) > 1})
+    if duplicate_keys:
+        raise OpenAIResponseError(
+            f"OpenAI topic rewrites contain duplicate topic_key values: {', '.join(duplicate_keys)}"
+        )
+
+    expected_key_set = set(expected_keys)
+    actual_key_set = set(actual_keys)
+    missing = sorted(expected_key_set - actual_key_set)
+    extra = sorted(actual_key_set - expected_key_set)
+    if missing or extra:
+        details: list[str] = []
+        if missing:
+            details.append(f"missing: {', '.join(missing)}")
+        if extra:
+            details.append(f"unexpected: {', '.join(extra)}")
+        raise OpenAIResponseError(
+            "OpenAI topic rewrites must exactly cover the deterministic topic set ("
+            + "; ".join(details)
+            + ")"
+        )
