@@ -1,0 +1,1 @@
+from test_helper_coverage import test_extractor_common_builds_sources_and_matches_patterns

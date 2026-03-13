@@ -1,0 +1,1 @@
+from test_helper_coverage import test_model_base_helpers_validate_and_serialize

@@ -1,0 +1,2 @@
+from test_helper_coverage import test_cli_build_parser_defaults_to_today_and_known_command
+from test_helper_coverage import test_cli_main_runs_pipeline_and_prints_help

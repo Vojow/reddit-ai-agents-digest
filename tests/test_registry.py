@@ -1,0 +1,1 @@
+from test_helper_coverage import test_registry_rejects_unknown_ruleset

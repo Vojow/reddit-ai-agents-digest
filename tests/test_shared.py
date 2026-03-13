@@ -1,0 +1,1 @@
+from test_helper_coverage import test_public_reddit_transport_falls_back_to_default_user_agent
