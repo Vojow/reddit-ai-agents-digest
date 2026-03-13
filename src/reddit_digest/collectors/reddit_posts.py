@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
-import json
 from typing import Any
 from typing import Protocol
 
@@ -16,6 +15,8 @@ import requests
 
 from reddit_digest.config import RuntimeConfig
 from reddit_digest.config import SubredditConfig
+from reddit_digest.collectors.shared import PublicRedditTransport
+from reddit_digest.collectors.shared import write_json_artifact
 from reddit_digest.models.base import ModelError
 from reddit_digest.models.post import Post
 
@@ -76,23 +77,20 @@ class PrawRedditPostSource:
 class PublicRedditPostSource:
     """Live Reddit source backed by public JSON endpoints."""
 
-    def __init__(self, runtime: RuntimeConfig, *, session: requests.Session | None = None) -> None:
-        self._session = session or requests.Session()
-        self._session.headers.update(
-            {
-                "User-Agent": runtime.reddit_user_agent or "reddit-ai-agents-digest/0.1.0",
-                "Accept": "application/json",
-            }
-        )
+    def __init__(
+        self,
+        runtime: RuntimeConfig,
+        *,
+        session: requests.Session | None = None,
+        transport: PublicRedditTransport | None = None,
+    ) -> None:
+        self._transport = transport or PublicRedditTransport(runtime, session=session)
 
     def fetch_posts(self, subreddit: str, sort_mode: str, limit: int) -> list[dict[str, Any]]:
-        url = f"https://www.reddit.com/r/{subreddit}/{sort_mode}.json"
         params: dict[str, Any] = {"limit": limit, "raw_json": 1}
         if sort_mode == "top":
             params["t"] = "day"
-        response = self._session.get(url, params=params, timeout=20)
-        response.raise_for_status()
-        payload = response.json()
+        payload = self._transport.get_json(f"/r/{subreddit}/{sort_mode}.json", params=params)
         return self._parse_listing(payload)
 
     def _parse_listing(self, payload: Any) -> list[dict[str, Any]]:
@@ -144,8 +142,8 @@ class PostCollector:
         minimum_created_utc = int(current_time.timestamp()) - (config.fetch.lookback_hours * 3600)
         raw_payload = self._fetch_and_filter(config, minimum_created_utc=minimum_created_utc)
         posts = self._normalize_posts(raw_payload)
-        raw_path = self._write_json(self._raw_root / "posts" / f"{run_date}.json", raw_payload)
-        processed_path = self._write_json(
+        raw_path = write_json_artifact(self._raw_root / "posts" / f"{run_date}.json", raw_payload)
+        processed_path = write_json_artifact(
             self._processed_root / "posts" / f"{run_date}.json",
             [post.to_dict() for post in posts],
         )
@@ -198,8 +196,3 @@ class PostCollector:
             for item in subreddit_payload["selected"]:
                 posts.append(Post.from_raw(item))
         return posts
-
-    def _write_json(self, path: Path, payload: Any) -> Path:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True))
-        return path
