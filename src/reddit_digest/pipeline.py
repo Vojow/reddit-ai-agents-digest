@@ -114,6 +114,8 @@ class PipelineRunner:
                 if quota_warning is not None:
                     markdown_warnings.append(quota_warning)
                     skip_topic_rewrites = True
+                else:
+                    raise
             else:
                 suggestions = tuple(f"{item.title}: {item.rationale}" for item in suggestion_result.suggestions)
 
