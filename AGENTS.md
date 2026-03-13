@@ -35,6 +35,7 @@ Primary outputs:
 - Keep run state in `data/state/`
 - Markdown output must be deterministic for the same input
 - Every new feature should include at least one test when reasonable
+- Treat [`docs/invariants.md`](docs/invariants.md) as the primary change-safety reference
 
 ## Digest rules
 Each daily digest should include:
