@@ -35,6 +35,12 @@ Run tests:
 uv run pytest
 ```
 
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Operations](docs/operations.md)
+- [Digest format](docs/digest-format.md)
+- [GCP WIF setup](docs/gcp-wif-setup.md)
 Copy `.env.example` to `.env` for local reference. The CLI now auto-loads
 `<repo>/.env` when it reads config. Exported shell variables still take
 precedence over values from `.env`.
@@ -47,7 +53,7 @@ Additional environment variables for local Sheets export:
 
 Optional runtime environment variables:
 - `OPENAI_API_KEY`
-- `OPENAI_MODEL`
+- `OPENAI_MODEL` (defaults to `gpt-5-mini`)
 
 Google Sheets authentication for local runs can come from:
 - Application Default Credentials
@@ -127,6 +133,13 @@ Topic selection stays deterministic. The LLM-enhanced markdown only rewrites the
 prose of already-selected topics into cleaner wording. It does not choose
 topics, links, or source subreddits, and if the rewrite step is unavailable or
 fails the deterministic markdown still completes normally.
+
+`Watch Next` is optional. When OpenAI suggestions are unavailable, the pipeline
+falls back to up to three insights marked `new`; if neither source is available,
+the section is omitted.
+
+If OpenAI quota is exhausted, the pipeline still writes the deterministic
+markdown and adds a prominent `## Warnings` section near the top of the report.
 
 ## Repository layout
 

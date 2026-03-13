@@ -14,6 +14,8 @@ def test_gcp_setup_doc_covers_required_wif_topics() -> None:
     assert "GOOGLE_SHEETS_SPREADSHEET_ID" in document
     assert "google-github-actions/auth" in document
     assert "Vojow/reddit-ai-agents-digest" in document
+    assert "Repository variables used by the current self-hosted markdown workflow" in document
+    assert "Additional repository variables required once Sheets export is re-enabled in" in document
 
 
 def test_readme_and_operations_link_to_gcp_setup_doc() -> None:
