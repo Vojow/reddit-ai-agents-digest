@@ -14,8 +14,8 @@ from reddit_digest.collectors.reddit_comments import PublicRedditCommentSource
 from reddit_digest.collectors.reddit_posts import PostCollector
 from reddit_digest.collectors.reddit_posts import PublicRedditPostSource
 from reddit_digest.config import load_config
-from reddit_digest.extractors.openai_suggestions import generate_suggestions
 from reddit_digest.extractors.openai_suggestions import generate_executive_summary_rewrite
+from reddit_digest.extractors.openai_suggestions import generate_suggestions
 from reddit_digest.extractors.openai_suggestions import generate_topic_rewrites
 from reddit_digest.extractors.service import extract_insights
 from reddit_digest.models.openai_usage import OpenAIUsageSummary
@@ -25,32 +25,28 @@ from reddit_digest.outputs.digest import select_digest_topics
 from reddit_digest.outputs.google_sheets import GoogleSheetsExporter
 from reddit_digest.outputs.markdown import render_markdown_digest
 from reddit_digest.outputs.teams import publish_digest_to_teams
+from reddit_digest.pipeline_stages import AnalysisStageServices
+from reddit_digest.pipeline_stages import CollectionStageServices
+from reddit_digest.pipeline_stages import DeliveryStageServices
+from reddit_digest.pipeline_stages import OpenAIStageServices
+from reddit_digest.pipeline_stages import PipelineRunContext
+from reddit_digest.pipeline_stages import PipelineServices
+from reddit_digest.pipeline_stages import RenderStageServices
+from reddit_digest.pipeline_stages import StateStageServices
+from reddit_digest.pipeline_stages import run_analysis_stage
+from reddit_digest.pipeline_stages import run_collection_stage
+from reddit_digest.pipeline_stages import run_delivery_stage
+from reddit_digest.pipeline_stages import run_openai_stage
+from reddit_digest.pipeline_stages import run_render_stage
+from reddit_digest.pipeline_stages import run_state_stage
 from reddit_digest.ranking.novelty import apply_novelty
 from reddit_digest.ranking.threads import select_threads
 from reddit_digest.utils.retries import retry_call
 from reddit_digest.utils.state import RunState
 from reddit_digest.utils.state import write_run_state
 
-from reddit_digest.pipeline_stages import AnalysisStage
-from reddit_digest.pipeline_stages import CollectionStage
-from reddit_digest.pipeline_stages import DeliveryStage
-from reddit_digest.pipeline_stages import OpenAIStage
-from reddit_digest.pipeline_stages import PipelineRunContext
-from reddit_digest.pipeline_stages import RenderStage
-from reddit_digest.pipeline_stages import StateStage
-
 
 LOGGER = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class PipelineStages:
-    collection: CollectionStage
-    analysis: AnalysisStage
-    openai: OpenAIStage
-    render: RenderStage
-    delivery: DeliveryStage
-    state: StateStage
 
 
 @dataclass
@@ -69,24 +65,23 @@ class PipelineRunner:
             run_date=run_date,
             skip_sheets=skip_sheets,
         )
-        stages = _compose_stages(self.base_path)
+        services = _compose_services()
 
-        collection = stages.collection.run(context)
-        analysis = stages.analysis.run(context, collection)
-        openai = stages.openai.run(context, collection, analysis)
-        rendered = stages.render.run(context, analysis, openai)
-        delivery = stages.delivery.run(context, collection, analysis, openai, rendered)
-        state = stages.state.run(context, collection, analysis, rendered, delivery, openai)
+        collection = run_collection_stage(context, services)
+        analysis = run_analysis_stage(context, collection, services)
+        openai = run_openai_stage(context, collection, analysis, services)
+        rendered = run_render_stage(context, analysis, openai, services)
+        delivery = run_delivery_stage(context, collection, analysis, openai, rendered, services)
+        state = run_state_stage(context, collection, analysis, rendered, delivery, openai, services)
 
         _log_openai_usage_summary(openai.usage)
         LOGGER.info("Pipeline completed for %s", run_date)
         return state
 
 
-def _compose_stages(base_path: Path) -> PipelineStages:
-    return PipelineStages(
-        collection=CollectionStage(
-            base_path=base_path,
+def _compose_services() -> PipelineServices:
+    return PipelineServices(
+        collection=CollectionStageServices(
             logger=LOGGER,
             retry_call=retry_call,
             post_source_factory=PublicRedditPostSource,
@@ -94,15 +89,13 @@ def _compose_stages(base_path: Path) -> PipelineStages:
             post_collector_factory=PostCollector,
             comment_collector_factory=CommentCollector,
         ),
-        analysis=AnalysisStage(
-            base_path=base_path,
+        analysis=AnalysisStageServices(
             extract_insights=extract_insights,
             apply_novelty=apply_novelty,
             select_threads=select_threads,
             select_digest_topics=select_digest_topics,
         ),
-        openai=OpenAIStage(
-            base_path=base_path,
+        openai=OpenAIStageServices(
             logger=LOGGER,
             retry_call=retry_call,
             build_openai_client=build_openai_client,
@@ -118,20 +111,17 @@ def _compose_stages(base_path: Path) -> PipelineStages:
                 skipped_steps="LLM topic rewrites and LLM executive summary rewrites",
             ),
         ),
-        render=RenderStage(
-            base_path=base_path,
+        render=RenderStageServices(
             build_digest_artifact=build_digest_artifact,
             render_markdown_digest=render_markdown_digest,
         ),
-        delivery=DeliveryStage(
-            base_path=base_path,
+        delivery=DeliveryStageServices(
             logger=LOGGER,
             retry_call=retry_call,
             sheets_exporter_factory=GoogleSheetsExporter.from_runtime,
             publish_digest_to_teams=publish_digest_to_teams,
         ),
-        state=StateStage(
-            base_path=base_path,
+        state=StateStageServices(
             write_run_state=write_run_state,
         ),
     )

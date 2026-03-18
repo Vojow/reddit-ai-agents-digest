@@ -214,7 +214,7 @@ whether they are source-of-record or derived/advisory outputs.
   - `tags`
   - `impact_score`
   - `why_it_matters`
-- Key semantics: upserted by `run_date` plus `source_id`
+- Key semantics: upserted by `run_date`, `source_id`, `category`, and `title`
 
 ### `Daily_Digest`
 

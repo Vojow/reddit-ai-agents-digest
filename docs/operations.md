@@ -86,7 +86,8 @@ Schema details for these artifact families live in
 
 When `TEAMS_WEBHOOK_URL` is configured, the pipeline also sends a best-effort
 Teams summary that includes:
-- report paths for the deterministic and preferred report variants
+- the selected report variant
+- the LLM executive summary when an LLM variant is present
 - top picked topics
 - emerging theme labels
 - watch-next items
