@@ -17,7 +17,7 @@ rerun a date safely.
 Markdown-only rerun:
 
 ```bash
-uv run reddit-digest run-daily --date YYYY-MM-DD --skip-sheets
+uv run reddit-digest run-daily --date YYYY-MM-DD --skip-sheets --markdown-only
 ```
 
 Full rerun with Sheets enabled:

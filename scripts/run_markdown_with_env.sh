@@ -17,4 +17,13 @@ set -a
 source "${ENV_FILE}"
 set +a
 
+if [[ -z "${UV_CACHE_DIR:-}" ]]; then
+  export UV_CACHE_DIR="${REPO_ROOT}/.cache/uv"
+fi
+mkdir -p "${UV_CACHE_DIR}"
+
+if [[ -z "${UV_PYTHON:-}" ]] && command -v python3.12 >/dev/null 2>&1; then
+  export UV_PYTHON="$(command -v python3.12)"
+fi
+
 exec make run-markdown

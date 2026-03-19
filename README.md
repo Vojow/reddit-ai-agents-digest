@@ -86,6 +86,9 @@ If `OPENAI_API_KEY` is set, the pipeline will also generate additive `Watch Next
 content suggestions and candidate new sources based only on the day’s collected
 findings.
 
+`make run-markdown` now forces deterministic markdown-only execution, even when
+`OPENAI_API_KEY` is present.
+
 If `TEAMS_WEBHOOK_URL` is set, the pipeline also posts an advisory Teams summary
 after local report generation. Teams delivery is best-effort and does not
 replace the deterministic markdown as the source of record.
@@ -105,7 +108,8 @@ requests from those runner IPs. The canonical markdown-only command is
 `make run-markdown`.
 
 The self-hosted GitHub Actions workflow runs the markdown pipeline only with
-`--skip-sheets`, so it does not require Google credentials. When you want to
+`--skip-sheets --markdown-only`, so it does not require Google credentials.
+When you want to
 re-enable Google Sheets export in self-hosted CI, use the setup runbook in
 [`docs/gcp-wif-setup.md`](docs/gcp-wif-setup.md).
 Google Sheets export in CI is currently disabled by design.

@@ -13,4 +13,4 @@ run:
 	uv run reddit-digest --help
 
 run-markdown:
-	uv run reddit-digest run-daily --skip-sheets
+	uv run reddit-digest run-daily --skip-sheets --markdown-only

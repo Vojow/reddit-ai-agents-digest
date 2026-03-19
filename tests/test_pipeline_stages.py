@@ -214,6 +214,40 @@ def test_openai_stage_returns_warning_and_skips_rewrites_on_quota_error(tmp_path
     )
 
 
+def test_openai_stage_skips_all_openai_work_when_markdown_only(tmp_path: Path) -> None:
+    services = _build_services(
+        build_openai_client=lambda _runtime: (_ for _ in ()).throw(AssertionError("should not build client")),
+        generate_suggestions=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not run")),
+        generate_topic_rewrites=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not run")),
+        generate_executive_summary_rewrite=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not run")),
+    )
+
+    result = run_openai_stage(
+        _build_context(tmp_path, openai_api_key="test-key", skip_openai=True),
+        CollectionArtifacts(
+            posts=(_build_post("post_001", subreddit="Codex"),),
+            comments=(),
+            raw_posts_path=tmp_path / "data" / "raw" / "posts" / "2026-03-12.json",
+            raw_comments_path=tmp_path / "data" / "raw" / "comments" / "2026-03-12.json",
+        ),
+        AnalysisArtifacts(
+            insights=(_build_insight("post_001"),),
+            insights_path=tmp_path / "data" / "processed" / "insights" / "2026-03-12.json",
+            thread_selection=_build_thread_selection(_build_post("post_001", subreddit="Codex")),
+            digest_topics=(),
+        ),
+        services,
+    )
+
+    assert result == OpenAIArtifacts(
+        watch_next=(),
+        topic_rewrites={},
+        executive_summary_rewrite=None,
+        warnings=(),
+        usage=OpenAIUsageSummary.empty(),
+    )
+
+
 def test_openai_stage_reraises_non_quota_executive_summary_failures(tmp_path: Path) -> None:
     class FakeLogger:
         def warning(self, *_args, **_kwargs) -> None:
@@ -592,6 +626,7 @@ def _build_context(
     openai_api_key: str | None = None,
     teams_webhook_url: str | None = None,
     skip_sheets: bool = True,
+    skip_openai: bool = False,
 ) -> PipelineRunContext:
     return PipelineRunContext.build(
         base_path=base_path,
@@ -625,6 +660,7 @@ def _build_context(
         ),
         run_date="2026-03-12",
         skip_sheets=skip_sheets,
+        skip_openai=skip_openai,
     )
 
 

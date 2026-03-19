@@ -53,7 +53,7 @@ LOGGER = logging.getLogger(__name__)
 class PipelineRunner:
     base_path: Path
 
-    def run(self, *, run_date: str, skip_sheets: bool = False) -> RunState:
+    def run(self, *, run_date: str, skip_sheets: bool = False, skip_openai: bool = False) -> RunState:
         config = load_config(
             self.base_path,
             require_reddit=True,
@@ -64,6 +64,7 @@ class PipelineRunner:
             config=config,
             run_date=run_date,
             skip_sheets=skip_sheets,
+            skip_openai=skip_openai,
         )
         services = _compose_services()
 

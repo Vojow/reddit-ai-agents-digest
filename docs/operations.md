@@ -48,6 +48,7 @@ uv run reddit-digest run-daily --date 2026-03-12
 Supported flags:
 - `--date YYYY-MM-DD` selects the run date and defaults to the current day.
 - `--skip-sheets` skips Google Sheets export and only writes local artifacts.
+- `--markdown-only` skips OpenAI suggestions and LLM rewrite outputs.
 - `--base-path PATH` runs the pipeline against a different repository root.
 
 ## Run locally
@@ -58,7 +59,7 @@ Run the markdown-only pipeline:
 make run-markdown
 ```
 
-Run the full pipeline including Sheets export:
+Run the full pipeline including advisory OpenAI stages and Sheets export:
 
 ```bash
 uv run reddit-digest run-daily --date 2026-03-12
@@ -158,10 +159,9 @@ Optional secrets:
 - `OPENAI_API_KEY`
 
 The workflow currently runs markdown-only, so Google auth is not required in CI
-for the current markdown-only workflow. If `OPENAI_API_KEY` is present, the
-workflow can emit both markdown variants; otherwise it emits only the
-deterministic markdown. If you later want Sheets export in self-hosted CI, use
-the runbook in
+for the current markdown-only workflow. It emits only the deterministic
+markdown, even if `OPENAI_API_KEY` is present. If you later want Sheets export
+in self-hosted CI, use the runbook in
 [`docs/gcp-wif-setup.md`](gcp-wif-setup.md) and reintroduce the OIDC auth step.
 
 On workflow failure, the action uploads `reports/`, `data/processed/`, and

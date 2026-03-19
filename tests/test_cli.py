@@ -14,15 +14,17 @@ def test_cli_main_runs_pipeline_and_prints_help(monkeypatch: pytest.MonkeyPatch,
         def __init__(self, *, base_path: Path) -> None:
             calls["base_path"] = base_path
 
-        def run(self, *, run_date: str, skip_sheets: bool) -> None:
-            calls["run"] = (run_date, skip_sheets)
+        def run(self, *, run_date: str, skip_sheets: bool, skip_openai: bool) -> None:
+            calls["run"] = (run_date, skip_sheets, skip_openai)
 
     monkeypatch.setattr(cli, "PipelineRunner", FakeRunner)
     monkeypatch.setattr(cli, "configure_logging", lambda: calls.setdefault("logging", True))
 
-    assert cli.main(["run-daily", "--date", "2026-03-13", "--base-path", "/tmp/repo", "--skip-sheets"]) == 0
+    assert cli.main(
+        ["run-daily", "--date", "2026-03-13", "--base-path", "/tmp/repo", "--skip-sheets", "--markdown-only"]
+    ) == 0
     assert calls["base_path"] == Path("/tmp/repo")
-    assert calls["run"] == ("2026-03-13", True)
+    assert calls["run"] == ("2026-03-13", True, True)
     assert calls["logging"] is True
 
     assert cli.main([]) == 0
@@ -35,3 +37,4 @@ def test_cli_build_parser_defaults_to_today_and_known_command() -> None:
     assert args.command == "run-daily"
     assert args.base_path == "."
     assert isinstance(args.run_date, str)
+    assert args.markdown_only is False

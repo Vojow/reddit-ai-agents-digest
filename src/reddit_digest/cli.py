@@ -23,6 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_daily.add_argument("--date", dest="run_date", default=date.today().isoformat(), help="Run date in YYYY-MM-DD format.")
     run_daily.add_argument("--base-path", default=".", help="Repository base path.")
     run_daily.add_argument("--skip-sheets", action="store_true", help="Skip Google Sheets export.")
+    run_daily.add_argument(
+        "--markdown-only",
+        action="store_true",
+        help="Skip OpenAI enrichments and only write the deterministic markdown digest.",
+    )
     return parser
 
 
@@ -33,7 +38,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "run-daily":
         configure_logging()
         runner = PipelineRunner(base_path=Path(args.base_path))
-        runner.run(run_date=args.run_date, skip_sheets=args.skip_sheets)
+        runner.run(
+            run_date=args.run_date,
+            skip_sheets=args.skip_sheets,
+            skip_openai=args.markdown_only,
+        )
         return 0
 
     parser.print_help()
