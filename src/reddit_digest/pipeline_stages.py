@@ -140,9 +140,18 @@ class PipelineRunContext:
     run_date: str
     run_at: datetime
     skip_sheets: bool
+    skip_openai: bool
 
     @classmethod
-    def build(cls, *, base_path: Path, config: AppConfig, run_date: str, skip_sheets: bool) -> "PipelineRunContext":
+    def build(
+        cls,
+        *,
+        base_path: Path,
+        config: AppConfig,
+        run_date: str,
+        skip_sheets: bool,
+        skip_openai: bool,
+    ) -> "PipelineRunContext":
         run_at = datetime.fromisoformat(f"{run_date}T12:00:00+00:00").astimezone(UTC)
         return cls(
             base_path=base_path,
@@ -150,6 +159,7 @@ class PipelineRunContext:
             run_date=run_date,
             run_at=run_at,
             skip_sheets=skip_sheets,
+            skip_openai=skip_openai,
         )
 
 
@@ -324,7 +334,7 @@ def run_openai_stage(
     services: PipelineServices,
 ) -> OpenAIArtifacts:
     stage = services.openai
-    if not context.config.runtime.openai_api_key:
+    if context.skip_openai or not context.config.runtime.openai_api_key:
         return OpenAIArtifacts(
             watch_next=(),
             topic_rewrites={},
