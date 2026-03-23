@@ -32,6 +32,18 @@ Canonical local shortcut for the current markdown-only workflow:
 make run-markdown
 ```
 
+Preflight-only check for the same markdown bootstrap path:
+
+```bash
+make preflight
+```
+
+Direct CLI preflight:
+
+```bash
+uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only
+```
+
 ## Scenario: collection succeeded, later deterministic stage failed
 
 Symptoms:

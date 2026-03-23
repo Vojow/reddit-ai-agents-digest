@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Sequence
 
 from reddit_digest.pipeline import PipelineRunner
+from reddit_digest.preflight import format_preflight_result
+from reddit_digest.preflight import run_preflight
 from reddit_digest.utils.logging import configure_logging
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,6 +30,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip OpenAI enrichments and only write the deterministic markdown digest.",
     )
+    preflight = subparsers.add_parser("preflight", help="Check whether the daily digest can start successfully.")
+    preflight.add_argument("--base-path", default=".", help="Repository base path.")
+    preflight.add_argument("--skip-sheets", action="store_true", help="Skip Google Sheets export checks.")
+    preflight.add_argument(
+        "--markdown-only",
+        action="store_true",
+        help="Skip OpenAI enrichments and only validate the deterministic markdown run path.",
+    )
     return parser
 
 
@@ -44,6 +54,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             skip_openai=args.markdown_only,
         )
         return 0
+    if args.command == "preflight":
+        result = run_preflight(
+            base_path=Path(args.base_path),
+            skip_sheets=args.skip_sheets,
+            markdown_only=args.markdown_only,
+        )
+        print(format_preflight_result(result), end="")
+        return 0 if result.ok else 1
 
     parser.print_help()
     return 0
