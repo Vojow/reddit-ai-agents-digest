@@ -70,6 +70,13 @@ def _read_logged_env_values(env_log_path: Path) -> dict[str, str]:
     return values
 
 
+def _clean_bootstrap_env(env: dict[str, str]) -> dict[str, str]:
+    cleaned = env.copy()
+    cleaned.pop("UV_CACHE_DIR", None)
+    cleaned.pop("UV_PYTHON", None)
+    return cleaned
+
+
 def test_codex_environment_toml_points_to_setup_script() -> None:
     config_path = Path(".codex/environments/environment.toml")
     assert config_path.exists()
@@ -105,7 +112,7 @@ def test_codex_setup_script_uses_current_worktree_env_and_path_uv(tmp_path: Path
     log_path = tmp_path / "uv.log"
     env_log_path = tmp_path / "uv.env.log"
 
-    env = os.environ.copy()
+    env = _clean_bootstrap_env(os.environ)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     env["FAKE_UV_LOG"] = str(log_path)
     env["FAKE_UV_ENV_LOG"] = str(env_log_path)
@@ -151,7 +158,7 @@ def test_codex_setup_script_falls_back_to_primary_worktree_env(tmp_path: Path) -
     log_path = tmp_path / "uv.log"
     env_log_path = tmp_path / "uv.env.log"
 
-    env = os.environ.copy()
+    env = _clean_bootstrap_env(os.environ)
     env["PATH"] = f"{fake_bin}:/usr/bin:/bin"
     env["FAKE_UV_LOG"] = str(log_path)
     env["FAKE_UV_ENV_LOG"] = str(env_log_path)
@@ -179,7 +186,7 @@ def test_codex_setup_script_resolves_uv_from_common_home_location(tmp_path: Path
     log_path = tmp_path / "uv.log"
     env_log_path = tmp_path / "uv.env.log"
 
-    env = os.environ.copy()
+    env = _clean_bootstrap_env(os.environ)
     env["HOME"] = str(fake_home)
     env["PATH"] = "/usr/bin:/bin"
     env["FAKE_UV_LOG"] = str(log_path)
@@ -210,7 +217,7 @@ def test_codex_setup_script_uses_repo_venv_python_fallback_when_python312_not_on
     log_path = tmp_path / "uv.log"
     env_log_path = tmp_path / "uv.env.log"
 
-    env = os.environ.copy()
+    env = _clean_bootstrap_env(os.environ)
     env["PATH"] = f"{fake_bin}:/usr/bin:/bin"
     env["FAKE_UV_LOG"] = str(log_path)
     env["FAKE_UV_ENV_LOG"] = str(env_log_path)
@@ -235,7 +242,7 @@ def test_codex_setup_script_fails_with_deterministic_line_when_preflight_fails(t
     log_path = tmp_path / "uv.log"
     env_log_path = tmp_path / "uv.env.log"
 
-    env = os.environ.copy()
+    env = _clean_bootstrap_env(os.environ)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     env["FAKE_UV_LOG"] = str(log_path)
     env["FAKE_UV_ENV_LOG"] = str(env_log_path)
