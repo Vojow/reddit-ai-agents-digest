@@ -13,7 +13,8 @@ run:
 	uv run reddit-digest --help
 
 preflight:
-	./scripts/run_markdown_with_env.sh --preflight-only
+	uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only
 
 run-markdown:
-	./scripts/run_markdown_with_env.sh
+	uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only
+	uv run reddit-digest run-daily --base-path . --skip-sheets --markdown-only

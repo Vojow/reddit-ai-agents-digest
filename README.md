@@ -35,10 +35,12 @@ Run the markdown-only digest locally:
 make run-markdown
 ```
 
-That target uses `scripts/run_markdown_with_env.sh`, which is more reliable for
-automations and linked worktrees because it can find `uv` outside a login-shell
-`PATH`, reuse the primary worktree `.env` when the current worktree does not
-have one yet, and run a check-only preflight before the main pipeline starts.
+The canonical setup for Codex automation is
+`.codex/environments/environment.toml`, which runs
+`scripts/configure_codex_worktree_env.sh` during environment setup. That script
+resolves `.env` from the current worktree (or the primary worktree fallback),
+resolves `uv`, exports `UV_CACHE_DIR` / `UV_PYTHON` when derivable, and runs a
+check-only markdown preflight.
 
 Run tests:
 
@@ -99,10 +101,15 @@ If `OPENAI_API_KEY` is set, the pipeline will also generate additive `Watch Next
 content suggestions and candidate new sources based only on the day’s collected
 findings.
 
-`make run-markdown` now forces deterministic markdown-only execution, even when
-`OPENAI_API_KEY` is present.
-Use `make preflight` when you want to validate the same bootstrap path without
-starting the pipeline.
+`make preflight` runs direct CLI markdown preflight:
+
+```bash
+uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only
+```
+
+`make run-markdown` now runs that same direct preflight immediately before a
+direct CLI markdown run-daily command, and still forces deterministic
+markdown-only execution even when `OPENAI_API_KEY` is present.
 
 If `TEAMS_WEBHOOK_URL` is set, the pipeline also posts an advisory Teams summary
 after local report generation. Teams delivery is best-effort and does not
