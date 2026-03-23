@@ -12,7 +12,11 @@ def test_docs_describe_dual_markdown_outputs() -> None:
 
     assert "reports/daily/YYYY-MM-DD.llm.md" in readme
     assert "source of record" in readme
+    assert ".codex/environments/environment.toml" in readme
+    assert "scripts/configure_codex_worktree_env.sh" in readme
     assert "reports/latest.llm.md" in operations
+    assert ".codex/environments/environment.toml" in operations
+    assert "scripts/configure_codex_worktree_env.sh" in operations
     assert "data/processed/topic_rewrites/YYYY-MM-DD.json" in operations
     assert "data/processed/executive_summary_rewrites/YYYY-MM-DD.json" in operations
     assert "same selected topics" in operations

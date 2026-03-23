@@ -39,6 +39,10 @@ Optional environment variables:
 
 `OPENAI_MODEL` defaults to `gpt-5-mini` when it is unset.
 
+Codex environment bootstrap is configured in
+`.codex/environments/environment.toml` and runs
+`scripts/configure_codex_worktree_env.sh` during setup.
+
 ## CLI reference
 
 The CLI entrypoint is `reddit-digest` and currently exposes two subcommands:
@@ -65,17 +69,23 @@ Run the markdown-only pipeline:
 make run-markdown
 ```
 
-`make run-markdown` routes through `scripts/run_markdown_with_env.sh`, which is
-the preferred entrypoint for automations and fresh linked worktrees. The helper
-looks up `uv` from common install locations when the automation shell has a
-thin `PATH`, reuses the primary worktree `.env` when the current worktree does
-not have one yet, and runs a check-only preflight before starting the pipeline.
+`make run-markdown` runs direct CLI commands only:
+1. `uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only`
+2. `uv run reddit-digest run-daily --base-path . --skip-sheets --markdown-only`
 
-Run the same bootstrap preflight without starting the pipeline:
+The Codex setup script `scripts/configure_codex_worktree_env.sh` remains the
+bootstrap entrypoint for Codex environment setup, including `.env` worktree
+fallback, `uv` resolution, and preflight validation.
+
+Run direct CLI preflight without starting the pipeline:
 
 ```bash
 make preflight
 ```
+
+`make preflight` is a direct CLI check.
+Codex bootstrap preflight is handled by `scripts/configure_codex_worktree_env.sh`
+during Codex environment setup from `.codex/environments/environment.toml`.
 
 Run the full pipeline including advisory OpenAI stages and Sheets export:
 

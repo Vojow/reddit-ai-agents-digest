@@ -1,0 +1,5 @@
+version = 1
+name = "reddit-ai-agents-digest"
+
+[setup]
+script = "./scripts/configure_codex_worktree_env.sh"
