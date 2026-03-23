@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -214,11 +215,19 @@ def test_codex_setup_script_uses_repo_venv_python_fallback_when_python312_not_on
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     _write_fake_uv(fake_bin)
+    support_bin = tmp_path / "support-bin"
+    support_bin.mkdir()
+    dirname_path = shutil.which("dirname")
+    bash_path = shutil.which("bash")
+    assert dirname_path is not None
+    assert bash_path is not None
+    (support_bin / "dirname").symlink_to(dirname_path)
+    (support_bin / "bash").symlink_to(bash_path)
     log_path = tmp_path / "uv.log"
     env_log_path = tmp_path / "uv.env.log"
 
     env = _clean_bootstrap_env(os.environ)
-    env["PATH"] = f"{fake_bin}:/usr/bin:/bin"
+    env["PATH"] = f"{fake_bin}:{support_bin}"
     env["FAKE_UV_LOG"] = str(log_path)
     env["FAKE_UV_ENV_LOG"] = str(env_log_path)
 
