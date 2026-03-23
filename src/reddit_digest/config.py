@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import os
 import re
+import subprocess
 from typing import Any
 
 import yaml
@@ -250,6 +251,38 @@ def _find_unquoted_comment(value: str) -> int | None:
     return None
 
 
+def _discover_primary_worktree_root(root: Path) -> Path | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "worktree", "list", "--porcelain"],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
+
+    for line in result.stdout.splitlines():
+        if line.startswith("worktree "):
+            return Path(line.removeprefix("worktree ").strip()).expanduser()
+    return None
+
+
+def _resolve_dotenv_path(root: Path) -> Path | None:
+    local_dotenv = root / ".env"
+    if local_dotenv.exists():
+        return local_dotenv
+
+    primary_root = _discover_primary_worktree_root(root)
+    if primary_root is None:
+        return None
+
+    primary_dotenv = primary_root / ".env"
+    if primary_dotenv.exists():
+        return primary_dotenv
+    return None
+
+
 def load_subreddit_config(path: Path, *, env: Mapping[str, str] | None = None) -> SubredditConfig:
     payload = _read_yaml(path)
     fetch = payload.get("fetch")
@@ -355,7 +388,8 @@ def load_config(
     require_sheets: bool = False,
 ) -> AppConfig:
     root = base_path or Path.cwd()
-    env = {**_load_dotenv(root / ".env"), **os.environ}
+    dotenv_path = _resolve_dotenv_path(root)
+    env = {**(_load_dotenv(dotenv_path) if dotenv_path is not None else {}), **os.environ}
     config_dir = root / "config"
     return AppConfig(
         subreddits=load_subreddit_config(config_dir / "subreddits.yaml", env=env),

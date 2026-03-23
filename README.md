@@ -29,6 +29,11 @@ Run the markdown-only digest locally:
 make run-markdown
 ```
 
+That target uses `scripts/run_markdown_with_env.sh`, which is more reliable for
+automations and linked worktrees because it can find `uv` outside a login-shell
+`PATH` and reuse the primary worktree `.env` when the current worktree does not
+have one yet.
+
 Run tests:
 
 ```bash
@@ -46,6 +51,8 @@ uv run pytest
 Copy `.env.example` to `.env` for local reference. The CLI now auto-loads
 `<repo>/.env` when it reads config. Exported shell variables still take
 precedence over values from `.env`.
+In linked git worktrees, if the current worktree does not have its own `.env`,
+the CLI falls back to the primary worktree's `.env`.
 
 Required environment variables for local markdown-only runs:
 - `REDDIT_USER_AGENT`

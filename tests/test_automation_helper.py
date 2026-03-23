@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-def test_markdown_automation_helper_exists_and_uses_canonical_target() -> None:
+def test_markdown_automation_helper_resolves_shared_env_and_uv() -> None:
     helper_path = Path("scripts/run_markdown_with_env.sh")
 
     assert helper_path.exists()
@@ -9,4 +9,12 @@ def test_markdown_automation_helper_exists_and_uses_canonical_target() -> None:
     content = helper_path.read_text()
 
     assert 'source "${ENV_FILE}"' in content
-    assert "exec make run-markdown" in content
+    assert "git -C \"${REPO_ROOT}\" worktree list --porcelain" in content
+    assert "command -v uv" in content
+    assert 'exec "${UV_BIN}" run reddit-digest run-daily --skip-sheets --markdown-only "$@"' in content
+
+
+def test_makefile_run_markdown_uses_automation_helper() -> None:
+    content = Path("Makefile").read_text()
+
+    assert "./scripts/run_markdown_with_env.sh" in content

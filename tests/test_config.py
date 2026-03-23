@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -24,8 +25,8 @@ def test_load_config_from_repo_defaults(monkeypatch: pytest.MonkeyPatch, tmp_pat
     )
     config = load_config(tmp_path)
 
-    assert config.subreddits.primary == ("Codex", "ClaudeCode", "Vibecoding")
-    assert config.subreddits.enabled_subreddits == ("Codex", "ClaudeCode", "Vibecoding")
+    assert config.subreddits.primary == ("Codex", "ClaudeCode", "Vibecoding", "ClaudeAI")
+    assert config.subreddits.enabled_subreddits == ("Codex", "ClaudeCode", "Vibecoding", "ClaudeAI")
     assert config.scoring.weights["relevance"] == pytest.approx(0.30)
     assert config.runtime.openai_model == "gpt-5-mini"
 
@@ -228,6 +229,102 @@ tags:
 
     assert first.runtime.reddit_user_agent == "agent-one"
     assert second.runtime.reddit_user_agent == "agent-two"
+
+
+def test_load_config_falls_back_to_primary_worktree_dotenv(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    primary_root = tmp_path / "primary"
+    worktree_root = tmp_path / "feature"
+
+    write_text(
+        worktree_root / "config" / "subreddits.yaml",
+        """
+primary:
+  - Codex
+mvp_enabled:
+  include_secondary: false
+fetch:
+  lookback_hours: 24
+  sort_modes: [new]
+  min_post_score: 5
+  min_comments: 3
+  max_posts_per_subreddit: 25
+  max_comments_per_post: 50
+""".strip(),
+    )
+    write_text(
+        worktree_root / "config" / "scoring.yaml",
+        """
+weights:
+  relevance: 0.5
+tags:
+  - ai-agents
+""".strip(),
+    )
+    write_text(primary_root / ".env", "REDDIT_USER_AGENT=from-primary-worktree")
+
+    monkeypatch.delenv("REDDIT_USER_AGENT", raising=False)
+
+    def fake_run(command: list[str], *, capture_output: bool, check: bool, text: bool) -> subprocess.CompletedProcess[str]:
+        assert command == ["git", "-C", str(worktree_root), "worktree", "list", "--porcelain"]
+        assert capture_output is True
+        assert check is True
+        assert text is True
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=0,
+            stdout=f"worktree {primary_root}\nworktree {worktree_root}\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr("reddit_digest.config.subprocess.run", fake_run)
+
+    config = load_config(worktree_root, require_reddit=True)
+
+    assert config.runtime.reddit_user_agent == "from-primary-worktree"
+
+
+def test_load_config_prefers_worktree_dotenv_over_primary(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    primary_root = tmp_path / "primary"
+    worktree_root = tmp_path / "feature"
+
+    write_text(
+        worktree_root / "config" / "subreddits.yaml",
+        """
+primary:
+  - Codex
+mvp_enabled:
+  include_secondary: false
+fetch:
+  lookback_hours: 24
+  sort_modes: [new]
+  min_post_score: 5
+  min_comments: 3
+  max_posts_per_subreddit: 25
+  max_comments_per_post: 50
+""".strip(),
+    )
+    write_text(
+        worktree_root / "config" / "scoring.yaml",
+        """
+weights:
+  relevance: 0.5
+tags:
+  - ai-agents
+""".strip(),
+    )
+    write_text(primary_root / ".env", "REDDIT_USER_AGENT=from-primary-worktree")
+    write_text(worktree_root / ".env", "REDDIT_USER_AGENT=from-worktree")
+
+    monkeypatch.delenv("REDDIT_USER_AGENT", raising=False)
+
+    def unexpected_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("git worktree lookup should not run when the local .env exists")
+
+    monkeypatch.setattr("reddit_digest.config.subprocess.run", unexpected_run)
+
+    config = load_config(worktree_root, require_reddit=True)
+
+    assert config.runtime.reddit_user_agent == "from-worktree"
 
 
 def test_invalid_yaml_fails_with_clear_message(tmp_path: Path) -> None:

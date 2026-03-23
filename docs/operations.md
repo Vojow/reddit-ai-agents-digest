@@ -8,6 +8,8 @@ uv sync --dev
 
 The CLI auto-loads `.env` from the repository root when config is read.
 Exported environment variables still override values from `.env`.
+In linked git worktrees, if the current worktree does not have a `.env`, the
+CLI falls back to the primary worktree's `.env`.
 
 Required environment variables for local markdown-only runs:
 - `REDDIT_USER_AGENT`
@@ -58,6 +60,12 @@ Run the markdown-only pipeline:
 ```bash
 make run-markdown
 ```
+
+`make run-markdown` routes through `scripts/run_markdown_with_env.sh`, which is
+the preferred entrypoint for automations and fresh linked worktrees. The helper
+looks up `uv` from common install locations when the automation shell has a
+thin `PATH` and reuses the primary worktree `.env` when the current worktree
+does not have one yet.
 
 Run the full pipeline including advisory OpenAI stages and Sheets export:
 
