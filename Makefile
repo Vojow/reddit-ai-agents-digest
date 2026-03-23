@@ -1,4 +1,4 @@
-.PHONY: install test lint run run-markdown
+.PHONY: install test lint run preflight run-markdown
 
 install:
 	uv sync
@@ -11,6 +11,9 @@ lint:
 
 run:
 	uv run reddit-digest --help
+
+preflight:
+	./scripts/run_markdown_with_env.sh --preflight-only
 
 run-markdown:
 	./scripts/run_markdown_with_env.sh

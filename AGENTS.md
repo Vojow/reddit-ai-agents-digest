@@ -38,6 +38,10 @@ Primary outputs:
 - Treat [`docs/invariants.md`](docs/invariants.md) as the primary change-safety reference
 - For delegated Codex work, use the project-local subagents in `.codex/agents/`
 - Treat [`docs/subagents.md`](docs/subagents.md) as the authoritative contract for those subagents
+- Within this repository, the main/parent Codex chat is treated as the Architect for non-trivial production changes in `src/**`
+- That parent Architect chat owns scope framing and acceptance criteria, then delegates implementation to Worker and review to Explorer reviewer
+- For non-trivial production changes in `src/**`, delegation is mandatory: architect framing, worker implementation, and Explorer reviewer findings-first review
+- The parent agent must not keep production implementation local when the task affects `src/**` beyond a trivial one-file fix
 
 ## Digest rules
 Each daily digest should include:

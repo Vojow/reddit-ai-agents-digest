@@ -40,6 +40,7 @@ Do not edit `src/**` unless explicitly assigned a test-harness-only fix.
 - [`docs/invariants.md`](../invariants.md)
 - Existing regression tests for the affected area
 - Relevant docs or contracts for the behavior under test
+- `jCodeMunch` context and graph tools by default for test-impact and affected-file discovery
 
 ## Required outputs
 
@@ -53,6 +54,7 @@ Do not edit `src/**` unless explicitly assigned a test-harness-only fix.
 - Relevant regression coverage exists
 - Validation commands have been run or an execution blocker is stated
 - Risks to determinism, reruns, or delivery are explicitly called out
+- `jCodeMunch` was used by default for test-impact discovery, reference search, affected-file discovery, and code/test context gathering unless an explicit blocker was documented
 - No production code was changed outside the assigned scope
 
 ## Codex runtime file

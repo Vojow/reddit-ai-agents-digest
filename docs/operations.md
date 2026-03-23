@@ -41,10 +41,14 @@ Optional environment variables:
 
 ## CLI reference
 
-The CLI entrypoint is `reddit-digest` and currently exposes one subcommand:
+The CLI entrypoint is `reddit-digest` and currently exposes two subcommands:
 
 ```bash
 uv run reddit-digest run-daily --date 2026-03-12
+```
+
+```bash
+uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only
 ```
 
 Supported flags:
@@ -64,8 +68,14 @@ make run-markdown
 `make run-markdown` routes through `scripts/run_markdown_with_env.sh`, which is
 the preferred entrypoint for automations and fresh linked worktrees. The helper
 looks up `uv` from common install locations when the automation shell has a
-thin `PATH` and reuses the primary worktree `.env` when the current worktree
-does not have one yet.
+thin `PATH`, reuses the primary worktree `.env` when the current worktree does
+not have one yet, and runs a check-only preflight before starting the pipeline.
+
+Run the same bootstrap preflight without starting the pipeline:
+
+```bash
+make preflight
+```
 
 Run the full pipeline including advisory OpenAI stages and Sheets export:
 

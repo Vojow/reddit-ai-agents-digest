@@ -14,5 +14,7 @@ def test_rerun_runbook_is_linked_from_operations_and_covers_main_scenarios() -> 
     assert "Teams delivery failed" in document
     assert "rerun a past date safely" in document
     assert "uv run reddit-digest run-daily --date YYYY-MM-DD --skip-sheets --markdown-only" in document
+    assert "make preflight" in document
+    assert "uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only" in document
     assert "reports/daily/YYYY-MM-DD.md" in document
     assert "data/state/YYYY-MM-DD.json" in document

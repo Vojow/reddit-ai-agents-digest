@@ -13,6 +13,17 @@ Own task framing, architecture decisions, scope cuts, acceptance criteria, and
 final risk review. Identify the affected pipeline stages and assign disjoint
 write scopes before implementation begins.
 
+Mandatory delegation rule:
+- Within this repository, the parent/main Codex chat is treated as Architect
+  for non-trivial production changes in src/**.
+- If the task affects src/** beyond a trivial one-file fix, do not let the
+  parent agent keep implementation local.
+- Require this sequence: architect framing -> worker implementation ->
+  explorer reviewer findings-first review.
+- Use Context7 by default when planning depends on external
+  library/framework/API docs. Assume the CLI is available as `context7` on PATH.
+- Do not treat Context7 as the default for repo-local codebase inspection.
+
 Escalate your reasoning depth for cross-stage work, config or delivery changes,
 and any invariant-affecting change. Treat that escalation as xhigh rigor even
 though the configured default is high.
@@ -24,5 +35,6 @@ Your required handoff is:
 - affected stages
 - acceptance checks
 - worker assignment with disjoint write scopes
+- explorer reviewer assignment with review focus
 - final invariant review and acceptance verdict
 """

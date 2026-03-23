@@ -40,6 +40,9 @@ Do not edit `src/**` or `tests/**` unless explicitly assigned.
 - [`docs/invariants.md`](../invariants.md)
 - Existing docs that describe the affected behavior
 - Related tests that enforce doc contracts
+- `Context7` by default when docs updates depend on upstream product/library
+  documentation
+- `Context7` is not the default for repo-local codebase inspection
 
 ## Required outputs
 
@@ -52,6 +55,9 @@ Do not edit `src/**` or `tests/**` unless explicitly assigned.
 - Docs match current intended behavior
 - Cross-references are updated
 - New behavior is documented where operators or reviewers would expect it
+- `Context7` was used by default for external-doc tasks unless an explicit
+  blocker was documented
+- `Context7` was not treated as the default for repo-local codebase inspection
 - No code changes were made outside the assigned doc scope
 
 ## Codex runtime file

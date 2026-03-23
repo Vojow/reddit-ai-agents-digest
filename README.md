@@ -23,6 +23,12 @@ Run the package entrypoint:
 uv run reddit-digest --help
 ```
 
+Run bootstrap preflight only:
+
+```bash
+make preflight
+```
+
 Run the markdown-only digest locally:
 
 ```bash
@@ -31,8 +37,8 @@ make run-markdown
 
 That target uses `scripts/run_markdown_with_env.sh`, which is more reliable for
 automations and linked worktrees because it can find `uv` outside a login-shell
-`PATH` and reuse the primary worktree `.env` when the current worktree does not
-have one yet.
+`PATH`, reuse the primary worktree `.env` when the current worktree does not
+have one yet, and run a check-only preflight before the main pipeline starts.
 
 Run tests:
 
@@ -95,6 +101,8 @@ findings.
 
 `make run-markdown` now forces deterministic markdown-only execution, even when
 `OPENAI_API_KEY` is present.
+Use `make preflight` when you want to validate the same bootstrap path without
+starting the pipeline.
 
 If `TEAMS_WEBHOOK_URL` is set, the pipeline also posts an advisory Teams summary
 after local report generation. Teams delivery is best-effort and does not
@@ -120,6 +128,12 @@ When you want to
 re-enable Google Sheets export in self-hosted CI, use the setup runbook in
 [`docs/gcp-wif-setup.md`](docs/gcp-wif-setup.md).
 Google Sheets export in CI is currently disabled by design.
+
+The same preflight can also be run directly with:
+
+```bash
+uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only
+```
 
 ## Digest behavior
 
