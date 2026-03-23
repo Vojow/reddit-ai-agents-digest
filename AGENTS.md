@@ -36,6 +36,8 @@ Primary outputs:
 - Markdown output must be deterministic for the same input
 - Every new feature should include at least one test when reasonable
 - Treat [`docs/invariants.md`](docs/invariants.md) as the primary change-safety reference
+- For delegated Codex work, use the project-local subagents in `.codex/agents/`
+- Treat [`docs/subagents.md`](docs/subagents.md) as the authoritative contract for those subagents
 
 ## Digest rules
 Each daily digest should include:
