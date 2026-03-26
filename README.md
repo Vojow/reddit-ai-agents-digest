@@ -38,7 +38,8 @@ make run-markdown
 The canonical setup for Codex automation is
 `.codex/environments/environment.toml`, which runs
 `scripts/configure_codex_worktree_env.sh` during environment setup. That script
-resolves `.env` from the current worktree (or the primary worktree fallback),
+keeps the current worktree `.env` when present, otherwise seeds one from the
+primary worktree when available, then loads the local `.env`,
 resolves `uv`, exports `UV_CACHE_DIR` / `UV_PYTHON` when derivable, and runs a
 check-only markdown preflight.
 

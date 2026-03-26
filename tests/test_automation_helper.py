@@ -167,11 +167,45 @@ def test_codex_setup_script_falls_back_to_primary_worktree_env(tmp_path: Path) -
     result = _run_setup_script(script_path, env)
 
     assert result.returncode == 0, result.stderr
-    assert f"CODEX_ENV_SETUP OK: repo={repo_root} env={primary_env}" in result.stdout
+    local_env = repo_root / ".env"
+    assert local_env.read_text() == primary_env.read_text()
+    assert f"CODEX_ENV_SETUP OK: repo={repo_root} env={local_env}" in result.stdout
     env_values = _read_logged_env_values(env_log_path)
     assert env_values["REDDIT_USER_AGENT"] == "primary-worktree-agent"
     assert env_values["PATH"].startswith(f"{fake_bin}:")
     assert env_values["UV_CACHE_DIR"] == str(repo_root / ".cache" / "uv")
+
+
+def test_codex_setup_script_preserves_existing_worktree_env(tmp_path: Path) -> None:
+    repo_root = tmp_path / "linked-worktree"
+    script_path = _copy_setup_script(repo_root)
+
+    local_env = repo_root / ".env"
+    local_env.write_text("REDDIT_USER_AGENT=worktree-agent\n")
+
+    primary_root = tmp_path / "primary-worktree"
+    primary_root.mkdir(parents=True, exist_ok=True)
+    (primary_root / ".env").write_text("REDDIT_USER_AGENT=primary-worktree-agent\n")
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_fake_uv(fake_bin)
+    _write_fake_git(fake_bin, primary_root)
+    log_path = tmp_path / "uv.log"
+    env_log_path = tmp_path / "uv.env.log"
+
+    env = _clean_bootstrap_env(os.environ)
+    env["PATH"] = f"{fake_bin}:/usr/bin:/bin"
+    env["FAKE_UV_LOG"] = str(log_path)
+    env["FAKE_UV_ENV_LOG"] = str(env_log_path)
+
+    result = _run_setup_script(script_path, env)
+
+    assert result.returncode == 0, result.stderr
+    assert local_env.read_text() == "REDDIT_USER_AGENT=worktree-agent\n"
+    assert f"CODEX_ENV_SETUP OK: repo={repo_root} env={local_env}" in result.stdout
+    env_values = _read_logged_env_values(env_log_path)
+    assert env_values["REDDIT_USER_AGENT"] == "worktree-agent"
 
 
 def test_codex_setup_script_resolves_uv_from_common_home_location(tmp_path: Path) -> None:

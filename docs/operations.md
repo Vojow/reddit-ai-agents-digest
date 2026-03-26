@@ -42,6 +42,8 @@ Optional environment variables:
 Codex environment bootstrap is configured in
 `.codex/environments/environment.toml` and runs
 `scripts/configure_codex_worktree_env.sh` during setup.
+When a linked worktree does not yet have its own `.env`, that setup script
+seeds `REPO_ROOT/.env` from the primary worktree before loading it.
 
 ## CLI reference
 
@@ -75,7 +77,7 @@ make run-markdown
 
 The Codex setup script `scripts/configure_codex_worktree_env.sh` remains the
 bootstrap entrypoint for Codex environment setup, including `.env` worktree
-fallback, `uv` resolution, and preflight validation.
+seeding, `uv` resolution, and preflight validation.
 
 Run direct CLI preflight without starting the pipeline:
 
