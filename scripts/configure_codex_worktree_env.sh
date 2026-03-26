@@ -24,17 +24,30 @@ resolve_primary_worktree_root() {
   return 1
 }
 
-resolve_env_file() {
+resolve_primary_env_file() {
   local primary_root
+
+  primary_root="$(resolve_primary_worktree_root || true)"
+  if [[ -n "${primary_root}" && "${primary_root}" != "${REPO_ROOT}" && -f "${primary_root}/.env" ]]; then
+    printf '%s\n' "${primary_root}/.env"
+    return 0
+  fi
+
+  return 1
+}
+
+seed_worktree_env_file() {
+  local primary_env
 
   if [[ -f "${REPO_ROOT}/.env" ]]; then
     printf '%s\n' "${REPO_ROOT}/.env"
     return 0
   fi
 
-  primary_root="$(resolve_primary_worktree_root || true)"
-  if [[ -n "${primary_root}" && "${primary_root}" != "${REPO_ROOT}" && -f "${primary_root}/.env" ]]; then
-    printf '%s\n' "${primary_root}/.env"
+  primary_env="$(resolve_primary_env_file || true)"
+  if [[ -n "${primary_env}" ]]; then
+    cp "${primary_env}" "${REPO_ROOT}/.env"
+    printf '%s\n' "${REPO_ROOT}/.env"
     return 0
   fi
 
@@ -68,7 +81,7 @@ resolve_uv_bin() {
 echo "CODEX_ENV_SETUP START: repo=${REPO_ROOT}"
 
 ENV_SOURCE="none"
-if ENV_FILE="$(resolve_env_file)"; then
+if ENV_FILE="$(seed_worktree_env_file)"; then
   set -a
   # shellcheck disable=SC1090
   source "${ENV_FILE}"
