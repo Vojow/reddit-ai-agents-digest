@@ -95,8 +95,14 @@ def test_makefile_markdown_targets_use_direct_cli_commands() -> None:
     assert not Path("scripts/run_markdown_with_env.sh").exists()
     assert "preflight:" in content
     assert "run-markdown:" in content
+    assert "run-ai:" in content
+    assert ".PHONY: install test lint run preflight run-markdown run-ai" in content
     assert "uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only" in content
     assert "uv run reddit-digest run-daily --base-path . --skip-sheets --markdown-only" in content
+    assert "uv run reddit-digest preflight --base-path . --skip-sheets" in content
+    assert "uv run reddit-digest run-daily --base-path . --skip-sheets" in content
+    run_ai_block = content.split("run-ai:", maxsplit=1)[1]
+    assert "--markdown-only" not in run_ai_block
     assert "run_markdown_with_env.sh" not in content
 
 

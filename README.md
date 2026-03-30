@@ -35,6 +35,12 @@ Run the markdown-only digest locally:
 make run-markdown
 ```
 
+Run the AI-enhanced digest locally (no Sheets export):
+
+```bash
+make run-ai
+```
+
 The canonical setup for Codex automation is
 `.codex/environments/environment.toml`, which runs
 `scripts/configure_codex_worktree_env.sh` during environment setup. That script
@@ -66,11 +72,13 @@ the CLI falls back to the primary worktree's `.env`.
 Required environment variables for local markdown-only runs:
 - `REDDIT_USER_AGENT`
 
+Additional required environment variable for local AI-enhanced runs:
+- `OPENAI_API_KEY`
+
 Additional environment variables for local Sheets export:
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 
 Optional runtime environment variables:
-- `OPENAI_API_KEY`
 - `OPENAI_MODEL` (defaults to `gpt-5-mini`)
 - `TEAMS_WEBHOOK_URL`
 
@@ -112,6 +120,10 @@ uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only
 direct CLI markdown run-daily command, and still forces deterministic
 markdown-only execution even when `OPENAI_API_KEY` is present.
 
+`make run-ai` runs direct CLI commands without `--markdown-only`, still with
+`--skip-sheets`, so local execution keeps deterministic topic selection while
+enabling AI-enhanced outputs.
+
 If `TEAMS_WEBHOOK_URL` is set, the pipeline also posts an advisory Teams summary
 after local report generation. Teams delivery is best-effort and does not
 replace the deterministic markdown as the source of record.
@@ -128,7 +140,8 @@ The supported automated execution path is now a GitHub Actions `self-hosted`
 runner or a direct local run on the same machine. GitHub-hosted runners are not
 supported for live Reddit collection because Reddit blocks the public JSON
 requests from those runner IPs. The canonical markdown-only command is
-`make run-markdown`.
+`make run-markdown`; the canonical AI-enhanced local no-Sheets command is
+`make run-ai`.
 
 The self-hosted GitHub Actions workflow runs the markdown pipeline only with
 `--skip-sheets --markdown-only`, so it does not require Google credentials.
