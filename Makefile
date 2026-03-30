@@ -1,4 +1,4 @@
-.PHONY: install test lint run preflight run-markdown
+.PHONY: install test lint run preflight run-markdown run-ai
 
 install:
 	uv sync
@@ -18,3 +18,7 @@ preflight:
 run-markdown:
 	uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only
 	uv run reddit-digest run-daily --base-path . --skip-sheets --markdown-only
+
+run-ai:
+	uv run reddit-digest preflight --base-path . --skip-sheets
+	uv run reddit-digest run-daily --base-path . --skip-sheets

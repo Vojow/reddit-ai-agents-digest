@@ -12,9 +12,22 @@ def test_docs_describe_dual_markdown_outputs() -> None:
 
     assert "reports/daily/YYYY-MM-DD.llm.md" in readme
     assert "source of record" in readme
+    assert "make run-ai" in readme
+    assert "AI-enhanced digest locally (no Sheets export)" in readme
+    assert "Additional required environment variable for local AI-enhanced runs" in readme
+    assert "OPENAI_API_KEY" in readme
     assert ".codex/environments/environment.toml" in readme
     assert "scripts/configure_codex_worktree_env.sh" in readme
     assert "reports/latest.llm.md" in operations
+    assert "make run-ai" in operations
+    assert "ops/launchd/com.vojow.reddit-ai-agents-digest.daily.plist" in operations
+    assert "launchctl bootstrap gui/$(id -u)" in operations
+    assert "launchctl bootout gui/$(id -u)" in operations
+    assert "launchctl kickstart -k gui/$(id -u)/com.vojow.reddit-ai-agents-digest.daily" in operations
+    assert "mkdir -p ~/Library/Logs/reddit-ai-agents-digest" in operations
+    assert "/Users/wojciechwieczorek/Library/Logs/reddit-ai-agents-digest/daily.out.log" in operations
+    assert "/Users/wojciechwieczorek/Library/Logs/reddit-ai-agents-digest/daily.err.log" in operations
+    assert "OPENAI_API_KEY" in operations
     assert ".codex/environments/environment.toml" in operations
     assert "scripts/configure_codex_worktree_env.sh" in operations
     assert "data/processed/topic_rewrites/YYYY-MM-DD.json" in operations

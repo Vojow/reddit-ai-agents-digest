@@ -14,6 +14,9 @@ CLI falls back to the primary worktree's `.env`.
 Required environment variables for local markdown-only runs:
 - `REDDIT_USER_AGENT`
 
+Additional required environment variable for local AI-enhanced runs:
+- `OPENAI_API_KEY`
+
 Additional environment variables for the full local pipeline:
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 
@@ -27,7 +30,6 @@ Local development differs from CI:
 - `GOOGLE_SERVICE_ACCOUNT_JSON` is only a local fallback when ADC is not available.
 
 Optional environment variables:
-- `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `TEAMS_WEBHOOK_URL`
 - `INCLUDE_SECONDARY_SUBREDDITS`
@@ -75,6 +77,19 @@ make run-markdown
 1. `uv run reddit-digest preflight --base-path . --skip-sheets --markdown-only`
 2. `uv run reddit-digest run-daily --base-path . --skip-sheets --markdown-only`
 
+Run the AI-enhanced no-Sheets pipeline:
+
+```bash
+make run-ai
+```
+
+`make run-ai` runs direct CLI commands only:
+1. `uv run reddit-digest preflight --base-path . --skip-sheets`
+2. `uv run reddit-digest run-daily --base-path . --skip-sheets`
+
+Use `make run-markdown` for deterministic local markdown-only execution.
+Use `make run-ai` for local AI-enhanced execution without Google Sheets export.
+
 The Codex setup script `scripts/configure_codex_worktree_env.sh` remains the
 bootstrap entrypoint for Codex environment setup, including `.env` worktree
 seeding, `uv` resolution, and preflight validation.
@@ -94,6 +109,35 @@ Run the full pipeline including advisory OpenAI stages and Sheets export:
 ```bash
 uv run reddit-digest run-daily --date 2026-03-12
 ```
+
+## launchd local scheduler
+
+User LaunchAgent template:
+- `ops/launchd/com.vojow.reddit-ai-agents-digest.daily.plist`
+
+This LaunchAgent runs daily at `09:00` local time and executes:
+- `scripts/run_ai_launchd.sh`
+- which updates `main` with `git fetch origin main` + `git pull --ff-only origin main`
+- then runs `make run-ai`
+
+Install / reload / trigger:
+
+```bash
+mkdir -p ~/Library/LaunchAgents
+mkdir -p ~/Library/Logs/reddit-ai-agents-digest
+cp ops/launchd/com.vojow.reddit-ai-agents-digest.daily.plist ~/Library/LaunchAgents/
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.vojow.reddit-ai-agents-digest.daily.plist || true
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.vojow.reddit-ai-agents-digest.daily.plist
+launchctl kickstart -k gui/$(id -u)/com.vojow.reddit-ai-agents-digest.daily
+```
+
+Log files:
+- `/Users/wojciechwieczorek/Library/Logs/reddit-ai-agents-digest/daily.out.log`
+- `/Users/wojciechwieczorek/Library/Logs/reddit-ai-agents-digest/daily.err.log`
+
+Failure behavior:
+- `scripts/run_ai_launchd.sh` exits with deterministic `RUN_AI_LAUNCHD FAIL: ...` lines
+- on failure it also triggers a macOS notification via `osascript`
 
 ## Output locations
 
